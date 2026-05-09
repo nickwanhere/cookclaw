@@ -68,8 +68,11 @@ echo "[1/6] system install"
 echo
 echo "[2/6] openclaw onboard --non-interactive"
 if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
+  # --accept-risk required for non-interactive: acknowledges API keys + daemon
+  # run unattended without per-prompt warnings. See docs.openclaw.ai/security
   openclaw onboard \
     --non-interactive \
+    --accept-risk \
     --mode local \
     --auth-choice apiKey \
     --secret-input-mode ref \

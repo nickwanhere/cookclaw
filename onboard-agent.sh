@@ -200,17 +200,25 @@ echo "saved profile → $PROFILE"
 
 # --- generate provider config fragment ---
 # SecretRef syntax: { source, provider, id } — verified at docs.openclaw.ai
-# Telegram allowFrom must be literal IDs (no SecretRefs in arrays), so resolved here.
+# These keys are resolved at install time (no runtime substitution available):
+#   - Telegram allowFrom: must be literal IDs (no SecretRefs in arrays)
+#   - memory-wiki vault.path: must be absolute path (no ~ / ${HOME} expansion in plugins.entries)
+VAULT_PATH="$HOME/.openclaw/wiki/main"
+mkdir -p "$VAULT_PATH"
 jq -n \
   --arg provider "$PROVIDER" \
   --arg main_model "$MAIN_MODEL" \
   --arg active_model "$ACTIVE_MODEL" \
   --arg api_key_var "$API_KEY_VAR" \
   --arg tg_owner_id "$TG_OWNER_ID" \
+  --arg vault_path "$VAULT_PATH" \
   '{
     agents: { defaults: { model: { primary: $main_model, fallbacks: [] } } },
     models: { providers: { ($provider): { apiKey: { source: "env", provider: "default", id: $api_key_var } } } },
-    plugins: { entries: { "active-memory": { config: { model: $active_model } } } },
+    plugins: { entries: {
+      "active-memory": { config: { model: $active_model } },
+      "memory-wiki": { config: { vault: { path: $vault_path } } }
+    } },
     channels: { telegram: { allowFrom: [$tg_owner_id] } },
     commands: { ownerAllowFrom: ["telegram:" + $tg_owner_id] }
   }' > "$PROVIDER_CONFIG"

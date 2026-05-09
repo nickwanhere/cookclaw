@@ -1,4 +1,5 @@
 {
+  "_comment": "vault.path is per-install (absolute path resolved at install time by onboard-agent.sh into 00-provider.local.json). OpenClaw's plugins.entries config does not expand ~ or ${HOME} — issue #21921.",
   "plugins": {
     "entries": {
       "memory-wiki": {
@@ -6,7 +7,6 @@
         "config": {
           "vaultMode": "isolated",
           "vault": {
-            "path": "~/.openclaw/wiki/main",
             "renderMode": "obsidian"
           },
           "obsidian": {

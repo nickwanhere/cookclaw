@@ -1,12 +1,12 @@
 ---
-name: status
-description: Use when the user types `/status`, `/queue`, `/done`, or asks "what's going on" / "what are you doing" / "what's pending" in chat. Returns a tight summary of current task state, recent agent activity, and blockers.
+name: work
+description: Use when the user types `/work`, `/queue`, `/done`, or `/blocked`, or asks "what are you working on" / "what's pending" / "what's blocked" in chat. Returns a tight summary of agent work state — TaskFlow tasks, recent sub-agent spawns from the OpenClaw ledger, today's audit log entries. Distinct from built-in `/status` which shows gateway/model/token diagnostics; this skill shows what work the agent is actually doing.
 allowed-tools: Bash(taskflow:*), Bash(openclaw tasks:*), Read
 ---
 
-# /status skill
+# /work skill
 
-Reply with a tight summary of agent state across three sources:
+Reply with a tight summary of agent work state across three sources:
 
 1. **Owner-curated tasks** — `taskflow list --json` for current TaskFlow state. Group by section: In Progress, Pending Validation, Blocked, Backlog (top 3). Skip Done unless `/done` was the trigger.
 2. **Sub-agent / spawn activity** — `openclaw tasks list --since 1h --json` for recent ledger activity. Show last 5 entries with status (success / failure / running) and short summary.
@@ -31,11 +31,15 @@ If everything is empty: `Agent idle. No tasks active, no recent activity.`
 
 ## Triggers
 
-- `/status` → full summary above
+- `/work` → full summary (what's the agent working on)
 - `/queue` → tasks only (skip activity + log)
 - `/done [today|week]` → completed section, scoped
 - `/blocked` → only blocked tasks with reasons
-- "what's pending" / "what are you working on" → same as `/status` but conversational tone
+- "what are you working on" / "what's pending" → same as `/work` but conversational tone
+
+## Naming note
+
+OpenClaw has a built-in `/status` command that shows gateway/model/token diagnostics. This skill is named `/work` to avoid collision and to better reflect what it shows: agent **work state**, not framework state. Use built-in `/status` for "is the gateway healthy?" and `/work` for "what is the agent doing?"
 
 ## Constraints
 

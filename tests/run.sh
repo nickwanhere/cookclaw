@@ -53,7 +53,7 @@ test_required_files_exist() {
            workspace/SOUL.md workspace/AGENTS.md workspace/HEARTBEAT.md \
            workspace/IDENTITY.md.template workspace/USER.md.template \
            workspace/topics/_TEMPLATE.md \
-           workspace/skills/clarify/SKILL.md workspace/skills/status/SKILL.md \
+           workspace/skills/clarify/SKILL.md workspace/skills/work/SKILL.md \
            .env.example .gitignore; do
     [[ -e "$SCRIPT_DIR/$f" ]] || { echo "missing: $f"; return 1; }
   done

@@ -68,26 +68,43 @@ echo "[1/6] system install"
 echo
 echo "[2/6] openclaw onboard --non-interactive"
 if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
-  # Sanity check: env var must be exported for openclaw to pick up
+  # Sanity check: env var must be exported for the case below to read it
   if [[ -z "${!PROVIDER_KEY_VAR:-}" ]]; then
     echo "error: $PROVIDER_KEY_VAR is not in process env after sourcing .env.local" >&2
     echo "Check .env.local syntax (no quotes around the value, no leading whitespace)" >&2
     exit 1
   fi
 
-  # --accept-risk required for non-interactive (acknowledges automated install).
-  # --secret-input-mode ref tells OpenClaw to write env-ref placeholders (no plaintext).
-  # OpenClaw auto-detects which provider based on which *_API_KEY is in env
-  # (we exported it via `source .env.local` above). Don't pass --custom-api-key —
-  # that's for custom OpenAI-compatible providers, not the standard ones.
+  # Map our env var name to OpenClaw's provider-specific onboard flag + auth-choice.
+  # Verified against `openclaw onboard --help` for v2026.5.7. Update as new providers
+  # are supported. Note: --auth-choice 'apiKey' is the generic for anthropic (no
+  # anthropic-specific auth-choice exists in this OpenClaw version).
+  case "$PROVIDER_KEY_VAR" in
+    ANTHROPIC_API_KEY)             AUTH_CHOICE="apiKey";              PROVIDER_FLAG="--anthropic-api-key" ;;
+    OPENAI_API_KEY)                AUTH_CHOICE="openai-api-key";      PROVIDER_FLAG="--openai-api-key" ;;
+    MINIMAX_API_KEY)               AUTH_CHOICE="minimax-global-api";  PROVIDER_FLAG="--minimax-api-key" ;;
+    GOOGLE_API_KEY|GEMINI_API_KEY) AUTH_CHOICE="gemini-api-key";      PROVIDER_FLAG="--gemini-api-key" ;;
+    CEREBRAS_API_KEY)              AUTH_CHOICE="cerebras-api-key";    PROVIDER_FLAG="--cerebras-api-key" ;;
+    GROQ_API_KEY)                  AUTH_CHOICE="groq-api-key";        PROVIDER_FLAG="--groq-api-key" ;;
+    XAI_API_KEY)                   AUTH_CHOICE="apiKey";              PROVIDER_FLAG="--xai-api-key" ;;
+    *)
+      echo "error: unsupported provider key var: $PROVIDER_KEY_VAR" >&2
+      echo "Add a case statement entry for it (run 'openclaw onboard --help' for valid flags)" >&2
+      exit 1
+      ;;
+  esac
+
+  # The key value is passed directly here — OpenClaw bakes it into openclaw.json.
+  # That's fine: step 5 (merge-configs.sh) overwrites openclaw.json with our
+  # SecretRef-shaped config, restoring env-ref behavior within seconds.
   openclaw onboard \
     --non-interactive \
     --accept-risk \
     --mode local \
-    --auth-choice apiKey \
-    --secret-input-mode ref \
+    --auth-choice "$AUTH_CHOICE" \
+    "$PROVIDER_FLAG" "${!PROVIDER_KEY_VAR}" \
     --install-daemon \
-    || { echo "openclaw onboard failed. Try running 'openclaw onboard --help' to confirm flags for v$(openclaw --version 2>/dev/null)" >&2; exit 1; }
+    || { echo "openclaw onboard failed. Run 'openclaw onboard --help' and check flag set for v$(openclaw --version 2>/dev/null)" >&2; exit 1; }
 else
   echo "(skipping — ~/.openclaw/openclaw.json already exists)"
 fi

@@ -10,6 +10,7 @@ Tasks listed here are time-tolerant — missing one beat is fine. For hard deadl
 - [ ] **Calendar peek** — events in next 4h. Surface conflicts, missing prep, or schedule risks.
 - [ ] **Task drift check** — `taskflow list --status in_progress`. Anything in_progress > 4h with no recent activity is stuck. Move to `Blocked` with a `blockedReason:` describing why, or surface to owner.
 - [ ] **Failed spawns** — `openclaw tasks list --status failure --since 30m`. If any, summarize the failure and either retry once or surface to owner.
+- [ ] **MC heartbeat** — invoke the `mc-ping` skill so Mission Control's dashboard reflects this agent as alive. Idempotent: re-registers if needed, then POSTs heartbeat. Skip silently if MC is unreachable (offline, port closed) — do NOT surface MC outages to the owner unless they persist > 1h.
 
 ## daily — runs once at 09:00 local (cron, not heartbeat)
 

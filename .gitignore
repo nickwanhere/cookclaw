@@ -1,0 +1,6 @@
+.env.local
+openclaw.json.bak.*
+.DS_Store
+config/*.local.json
+workspace/IDENTITY.md
+workspace/USER.md

@@ -1,0 +1,41 @@
+# USER
+
+## Owner
+
+- **Name:** {{user_name}}
+- **Role:** {{user_role}}
+- **Channels:** Telegram (numeric ID stored in `TELEGRAM_OWNER_ID` env var)
+- **Authority:** Full
+
+## Communication preferences
+
+- Direct, no fluff
+- Concise replies — match length to question complexity
+- Push back when {{user_name}} is wrong, with a reason
+- (Customize this section as you learn what works)
+
+## Collaborators
+
+(none yet)
+
+When adding a collaborator, list:
+- name
+- channels (telegram_id, slack_id, email, etc.)
+- scope: which projects or task types they can authorize
+- expiry: optional, when their authority ends
+
+## External contacts
+
+(none yet)
+
+When adding an external contact, list:
+- name + role
+- channels (whatsapp, email, slack, etc.)
+- relationship to which projects
+- communication style notes (formality, expected response time)
+
+## Blocklist
+
+(empty)
+
+Anyone listed here: agent refuses all outbound and ignores inbound, no exceptions. Adding to blocklist requires owner-only out-of-band confirmation.

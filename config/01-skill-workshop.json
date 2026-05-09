@@ -1,0 +1,19 @@
+{
+  "plugins": {
+    "entries": {
+      "skill-workshop": {
+        "enabled": true,
+        "config": {
+          "autoCapture": true,
+          "approvalPolicy": "pending",
+          "reviewMode": "hybrid",
+          "reviewInterval": 15,
+          "reviewMinToolCalls": 8,
+          "reviewTimeoutMs": 45000,
+          "maxPending": 50,
+          "maxSkillBytes": 40000
+        }
+      }
+    }
+  }
+}

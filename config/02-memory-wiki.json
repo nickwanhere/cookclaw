@@ -1,0 +1,22 @@
+{
+  "plugins": {
+    "entries": {
+      "memory-wiki": {
+        "enabled": true,
+        "config": {
+          "vaultMode": "isolated",
+          "vault": {
+            "path": "~/.openclaw/wiki/main",
+            "renderMode": "obsidian"
+          },
+          "obsidian": {
+            "enabled": true,
+            "useOfficialCli": false,
+            "vaultName": "openclaw",
+            "openAfterWrites": false
+          }
+        }
+      }
+    }
+  }
+}

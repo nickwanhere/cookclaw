@@ -1,0 +1,10 @@
+{
+  "_comment": "active-memory.config.model is set per-install in 00-provider.local.json — should be the cheap/fast tier of the chosen provider since this fires before every reply.",
+  "plugins": {
+    "entries": {
+      "active-memory": {
+        "enabled": true
+      }
+    }
+  }
+}

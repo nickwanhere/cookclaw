@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# System install for OpenClaw on macOS. Idempotent: re-running is safe.
+# Does NOT touch ~/.openclaw/openclaw.json — that's merge-configs.sh's job.
+
+require() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1 ($2)"; exit 1; }; }
+
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "this setup is macOS-only; current platform: $(uname -s)" >&2
+  exit 1
+fi
+
+require brew  "install from https://brew.sh"
+require node  "brew install node  OR  install nvm and 'nvm install --lts'"
+require npm   "comes with node"
+require jq    "brew install jq"
+
+if ! command -v openclaw >/dev/null 2>&1; then
+  echo "installing openclaw globally via npm..."
+  npm i -g openclaw
+else
+  echo "openclaw already installed: $(openclaw --version 2>/dev/null || echo unknown)"
+fi
+
+# TaskFlow: owner-curated task layer (markdown source of truth + SQLite index)
+TASKFLOW_DIR="$HOME/.openclaw/taskflow"
+if [[ ! -d "$TASKFLOW_DIR" ]]; then
+  echo "installing taskflow..."
+  git clone --depth=1 https://github.com/auxclawdbot/taskflow "$TASKFLOW_DIR"
+  if [[ -d /opt/homebrew/bin ]]; then
+    ln -sf "$TASKFLOW_DIR/scripts/taskflow-cli.mjs" /opt/homebrew/bin/taskflow
+  elif [[ -d /usr/local/bin ]]; then
+    ln -sf "$TASKFLOW_DIR/scripts/taskflow-cli.mjs" /usr/local/bin/taskflow
+  else
+    echo "warning: neither /opt/homebrew/bin nor /usr/local/bin present — symlink taskflow manually" >&2
+  fi
+  ( cd "$TASKFLOW_DIR" && npm install >/dev/null 2>&1 )
+  echo "taskflow installed at $TASKFLOW_DIR"
+else
+  echo "taskflow already installed: $TASKFLOW_DIR"
+fi
+
+# Mission Control: local ops dashboard (builderz-labs). Runs at http://localhost:3000
+# Per-install local — agent talks to MC via outbound HTTP with bearer token.
+MC_DIR="$HOME/.openclaw/mission-control"
+SETUP_DIR="$(cd "$(dirname "$0")" && pwd)"
+ENV_LOCAL="$SETUP_DIR/.env.local"
+
+if [[ ! -d "$MC_DIR" ]]; then
+  echo "installing mission-control (local dashboard)..."
+  git clone --depth=1 https://github.com/builderz-labs/mission-control "$MC_DIR"
+  ( cd "$MC_DIR" && bash install.sh --local >/dev/null 2>&1 ) || \
+    echo "warning: mission-control install.sh --local failed; run manually: cd $MC_DIR && bash install.sh --local" >&2
+  echo "mission-control installed at $MC_DIR"
+else
+  echo "mission-control already installed: $MC_DIR"
+fi
+
+# Extract or generate MC API key, write to .env.local
+mc_extract_or_generate_key() {
+  local mc_env="$MC_DIR/.env"
+  if [[ -f "$mc_env" ]]; then
+    # Try common variable names MC's install.sh might use
+    for var in MC_API_KEY API_KEY ADMIN_TOKEN BEARER_TOKEN ADMIN_API_KEY; do
+      local val
+      val=$(grep -E "^$var=" "$mc_env" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+      if [[ -n "$val" && "$val" != "CHANGE_ME" ]]; then
+        printf '%s' "$val"
+        return 0
+      fi
+    done
+  fi
+  # Fallback: generate our own. MC may need this set in its .env too — owner ties them up.
+  openssl rand -hex 32
+}
+
+upsert_env_var() {
+  local var="$1" val="$2" file="$3"
+  if [[ ! -f "$file" ]]; then return 1; fi
+  if grep -q "^$var=" "$file"; then
+    sed -i.bak "s|^$var=.*|$var=$val|" "$file" && rm -f "$file.bak"
+  else
+    echo "$var=$val" >> "$file"
+  fi
+}
+
+if [[ -f "$ENV_LOCAL" ]]; then
+  MC_KEY="$(mc_extract_or_generate_key)"
+  upsert_env_var MC_URL "http://localhost:3000" "$ENV_LOCAL"
+  upsert_env_var MC_API_KEY "$MC_KEY" "$ENV_LOCAL"
+  echo "wrote MC_URL + MC_API_KEY to $ENV_LOCAL"
+  echo "  MC dashboard: http://localhost:3000  (override URL for tailscale later)"
+  if [[ -f "$MC_DIR/.env" ]] && ! grep -q "^MC_API_KEY=$MC_KEY" "$MC_DIR/.env" 2>/dev/null; then
+    echo "  note: if MC's own .env uses a different key var, ensure $MC_DIR/.env matches MC_API_KEY in $ENV_LOCAL"
+  fi
+else
+  echo "note: $ENV_LOCAL not found yet — cp .env.example .env.local and re-run, or fill MC_URL/MC_API_KEY manually"
+fi
+
+echo
+echo "next steps:"
+echo "  1. openclaw onboard --install-daemon   # interactive: model + API key (once)"
+echo "  2. cp .env.example .env.local          # fill in TELEGRAM_BOT_TOKEN + API key"
+echo "  3. ./onboard-agent.sh                  # customize IDENTITY/USER for this install"
+echo "  4. set -a; source .env.local; set +a   # load env vars"
+echo "  5. cp workspace/*.md ~/.openclaw/workspace/   # deploy bootstrap files (templates excluded by glob)"
+echo "  6. ./sync-topics.sh                    # if you have topic files in workspace/topics/"
+echo "  7. ./merge-configs.sh --dry-run        # preview merged openclaw.json"
+echo "  8. ./merge-configs.sh                  # write it"
+echo "  9. restart the openclaw gateway"

@@ -57,14 +57,13 @@ if [[ ! -d "$MC_DIR" ]]; then
     ( cd "$MC_DIR" && bash install.sh --local 2>&1 | tail -10 ) \
       || echo "warning: mission-control install.sh --local failed (output above)" >&2
 
-    # pnpm 11+ blocks postinstall scripts by default. Patch package.json with the
-    # known-good native-deps allowlist so subsequent pnpm install can compile them.
+    # pnpm 11+ blocks postinstall scripts by default. The package.json patch
+    # approach (pnpm.onlyBuiltDependencies) doesn't reliably take effect in
+    # 11.0.9; use `pnpm rebuild` which forces all native compiles regardless
+    # of the allowlist gate.
     if [[ -f "$MC_DIR/package.json" ]]; then
-      jq '. + {pnpm: ((.pnpm // {}) + {onlyBuiltDependencies: ["@parcel/watcher","@swc/core","better-sqlite3","esbuild","node-pty","sharp","unrs-resolver","vue-demi"]})}' \
-        "$MC_DIR/package.json" > "$MC_DIR/package.json.tmp" \
-        && mv "$MC_DIR/package.json.tmp" "$MC_DIR/package.json"
-      ( cd "$MC_DIR" && pnpm install 2>&1 | tail -3 ) \
-        || echo "warning: pnpm install (with native build allowlist) failed" >&2
+      ( cd "$MC_DIR" && pnpm rebuild 2>&1 | tail -5 ) \
+        || echo "warning: pnpm rebuild failed; native modules may not work" >&2
     fi
   fi
 else

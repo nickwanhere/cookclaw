@@ -49,7 +49,7 @@ test_scripts_syntax() {
 assert_with_output "all .sh files pass bash -n" test_scripts_syntax
 
 test_required_files_exist() {
-  for f in setup-openclaw.sh onboard-agent.sh merge-configs.sh sync-topics.sh \
+  for f in setup-openclaw.sh onboard-agent.sh merge-configs.sh sync-topics.sh uninstall-openclaw.sh \
            workspace/SOUL.md workspace/AGENTS.md workspace/HEARTBEAT.md \
            workspace/IDENTITY.md.template workspace/USER.md.template \
            workspace/topics/_TEMPLATE.md \
@@ -173,6 +173,31 @@ test_onboard_creates_profile_and_renders() {
   jq -e '.user_name == "Test User"' "$sandbox/config/profile.local.json" >/dev/null || { echo "profile missing user_name"; return 1; }
 }
 assert_with_output "onboard creates profile + renders IDENTITY.md/USER.md from mock input" test_onboard_creates_profile_and_renders
+
+test_onboard_uses_env_local_defaults() {
+  local sandbox="$TMPDIR_ROOT/onboard-env-defaults"
+  mkdir -p "$sandbox"
+  cp -r "$SCRIPT_DIR"/* "$sandbox/" 2>/dev/null
+
+  # Pre-populate .env.local with real values — wizard should use them as defaults
+  cat > "$sandbox/.env.local" <<'EOF'
+TELEGRAM_BOT_TOKEN=real-bot-token
+TELEGRAM_OWNER_ID=987654321
+ANTHROPIC_API_KEY=sk-real-anthropic-key
+EOF
+
+  # answers: name, role, telegram_id(empty=accept env default), agent, vibe,
+  #          provider(empty=inferred), main_model, active_model, api_key_var(empty=inferred)
+  ( cd "$sandbox" && printf 'Test\nDev\n\nLiam\nvibe\n\nanthropic/claude-sonnet-4-6\nanthropic/claude-haiku-4-5\n\n' | ./onboard-agent.sh ) >/dev/null 2>&1
+
+  jq -e '.telegram_owner_id == "987654321"' "$sandbox/config/profile.local.json" >/dev/null \
+    || { echo "telegram_owner_id not pulled from .env.local"; return 1; }
+  jq -e '.api_key_var == "ANTHROPIC_API_KEY"' "$sandbox/config/profile.local.json" >/dev/null \
+    || { echo "api_key_var not inferred from .env.local"; return 1; }
+  jq -e '.provider == "anthropic"' "$sandbox/config/profile.local.json" >/dev/null \
+    || { echo "provider not inferred from api_key_var"; return 1; }
+}
+assert_with_output "onboard uses values already in .env.local as defaults (regression)" test_onboard_uses_env_local_defaults
 
 test_onboard_rejects_non_numeric_telegram_id() {
   local sandbox="$TMPDIR_ROOT/onboard-bad-id"

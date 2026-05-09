@@ -25,6 +25,74 @@ load_default() {
   fi
 }
 
+# Read VAR=value from a .env-formatted file. Returns empty if missing, blank, or CHANGE_ME.
+read_env_var() {
+  local var_name="$1" file="$2"
+  [[ -f "$file" ]] || { printf ''; return; }
+  local val
+  val=$(grep -E "^${var_name}=" "$file" 2>/dev/null | head -1 | cut -d= -f2-)
+  val="${val#\"}"; val="${val%\"}"
+  val="${val#\'}"; val="${val%\'}"
+  if [[ "$val" != "CHANGE_ME" && -n "$val" ]]; then printf '%s' "$val"; else printf ''; fi
+}
+
+# Find the first *_API_KEY var in .env.local with a real value, excluding MC_* / TELEGRAM_*.
+infer_api_key_var() {
+  local file="$1"
+  [[ -f "$file" ]] || { printf ''; return; }
+  while IFS= read -r line; do
+    local var_name="${line%%=*}"
+    local val="${line#*=}"
+    val="${val#\"}"; val="${val%\"}"
+    val="${val#\'}"; val="${val%\'}"
+    case "$var_name" in MC_API_KEY|TELEGRAM_*) continue;; esac
+    if [[ "$val" != "CHANGE_ME" && -n "$val" ]]; then printf '%s' "$var_name"; return; fi
+  done < <(grep -E "^[A-Z][A-Z0-9_]*_API_KEY=" "$file" 2>/dev/null)
+  printf ''
+}
+
+# Map an API key var name to a provider key (best-guess; user can override).
+api_key_var_to_provider() {
+  case "$1" in
+    ANTHROPIC_*) echo "anthropic";;
+    OPENAI_*) echo "openai";;
+    MINIMAX_*) echo "minimax";;
+    GOOGLE_*|GEMINI_*) echo "google";;
+    CEREBRAS_*) echo "cerebras";;
+    GROQ_*) echo "groq";;
+    XAI_*) echo "xai";;
+    *) echo "";;
+  esac
+}
+
+# Verified-current default flagship model per provider (May 2026). Override anytime.
+default_main_model_for() {
+  case "$1" in
+    openai) echo "openai/gpt-5";;
+    anthropic) echo "anthropic/claude-sonnet-4-6";;
+    minimax) echo "minimax/m2-7";;
+    google) echo "google/gemini-3-pro";;
+    cerebras) echo "cerebras/gpt-oss-120b";;
+    groq) echo "groq/llama-4-70b";;
+    xai) echo "xai/grok-4";;
+    *) echo "$1/REPLACE_WITH_MODEL_ID";;
+  esac
+}
+
+# Cheap/fast tier for active-memory (fires before every reply).
+default_active_model_for() {
+  case "$1" in
+    openai) echo "openai/gpt-5-mini";;
+    anthropic) echo "anthropic/claude-haiku-4-5";;
+    minimax) echo "minimax/m2-7-highspeed";;
+    google) echo "google/gemini-3-flash";;
+    cerebras) echo "cerebras/gpt-oss-120b";;
+    groq) echo "groq/llama-4-8b";;
+    xai) echo "xai/grok-4-mini";;
+    *) echo "$1/REPLACE_WITH_MODEL_ID";;
+  esac
+}
+
 prompt_field() {
   local label="$1" default="$2" required="${3:-0}" var
   while true; do
@@ -52,7 +120,8 @@ USER_NAME="$(prompt_field 'Your name' "$(load_default user_name '')" 1)"
 echo
 USER_ROLE="$(prompt_field 'Your role (e.g. founder, marketer, designer)' "$(load_default user_role '')" 1)"
 echo
-TG_OWNER_ID="$(prompt_field 'Your Telegram numeric user ID (from @userinfobot)' "$(load_default telegram_owner_id '')" 1)"
+ENV_TG_ID="$(read_env_var TELEGRAM_OWNER_ID "$ENV_LOCAL")"
+TG_OWNER_ID="$(prompt_field 'Your Telegram numeric user ID (from @userinfobot)' "$(load_default telegram_owner_id "$ENV_TG_ID")" 1)"
 if ! [[ "$TG_OWNER_ID" =~ ^[0-9]+$ ]]; then
   echo "error: Telegram user ID must be numeric digits only, got: $TG_OWNER_ID" >&2
   exit 1
@@ -66,16 +135,22 @@ AGENT_VIBE="$(prompt_field 'Agent vibe (one sentence)' "$(load_default agent_vib
 
 echo
 echo "-- model provider --"
+INFERRED_KEY_VAR="$(infer_api_key_var "$ENV_LOCAL")"
+INFERRED_PROVIDER="$(api_key_var_to_provider "$INFERRED_KEY_VAR")"
+if [[ -n "$INFERRED_KEY_VAR" ]]; then
+  echo "(detected $INFERRED_KEY_VAR in .env.local — using as default)"
+fi
 echo "Examples: openai, minimax, cerebras, google. Check OpenClaw docs for valid provider keys."
-PROVIDER="$(prompt_field 'Provider key' "$(load_default provider 'openai')" 1)"
+PROVIDER="$(prompt_field 'Provider key' "$(load_default provider "${INFERRED_PROVIDER:-openai}")" 1)"
 echo
-echo "Model IDs use 'provider/model' format. Examples: openai/gpt-5, minimax/abab-7-chat."
-MAIN_MODEL="$(prompt_field "Main agent model (full $PROVIDER/... ID)" "$(load_default main_model "$PROVIDER/")" 1)"
+echo "Model IDs use 'provider/model' format. Defaults below are verified-current flagship/cheap-tier picks for known providers — override if you want different."
+MAIN_MODEL="$(prompt_field "Main agent model" "$(load_default main_model "$(default_main_model_for "$PROVIDER")")" 1)"
 echo
-echo "Active-memory fires before every reply — pick a cheap/fast model from the same provider."
-ACTIVE_MODEL="$(prompt_field "Active-memory model" "$(load_default active_model "$PROVIDER/")" 1)"
+echo "Active-memory fires before every reply — cheap/fast tier of the same provider."
+ACTIVE_MODEL="$(prompt_field "Active-memory model" "$(load_default active_model "$(default_active_model_for "$PROVIDER")")" 1)"
 echo
-API_KEY_VAR="$(prompt_field 'API key environment variable name' "$(load_default api_key_var "$(echo "$PROVIDER" | tr '[:lower:]' '[:upper:]')_API_KEY")" 1)"
+DEFAULT_KEY_VAR="${INFERRED_KEY_VAR:-$(echo "$PROVIDER" | tr '[:lower:]' '[:upper:]')_API_KEY}"
+API_KEY_VAR="$(prompt_field 'API key environment variable name' "$(load_default api_key_var "$DEFAULT_KEY_VAR")" 1)"
 
 # --- save profile ---
 mkdir -p "$(dirname "$PROFILE")"

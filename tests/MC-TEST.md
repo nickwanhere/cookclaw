@@ -72,6 +72,39 @@ In the MC dashboard, confirm:
 | Agent replies but no entry in dashboard | Skill ran but parsed wrong `agent.id`. Confirm `tests/test-mc-ping.sh` works first. |
 | Agent says "step 1 failed: 401" | `MC_API_KEY` doesn't match MC's expected key. Edit `~/.openclaw/mission-control/.env` to match. |
 
+## Recovery — when MC and .env.local drift apart
+
+If you see 401s on every MC call, the `MC_API_KEY` in `.env.local` doesn't match the `API_KEY` in MC's runtime env. This can happen if MC was manually reinstalled, `.env.local` was edited by hand, or an older install left state behind. To resync:
+
+```bash
+# Pick a fresh key (or reuse an existing MC API_KEY if you know it)
+KEY=$(openssl rand -hex 32)
+
+# Force MC to use it (idempotent — replaces existing line if present)
+touch ~/.openclaw/mission-control/.env
+if grep -q "^API_KEY=" ~/.openclaw/mission-control/.env; then
+  sed -i.bak "s|^API_KEY=.*|API_KEY=$KEY|" ~/.openclaw/mission-control/.env && rm -f ~/.openclaw/mission-control/.env.bak
+else
+  echo "API_KEY=$KEY" >> ~/.openclaw/mission-control/.env
+fi
+
+# Mirror to our .env.local
+sed -i.bak "s|^MC_API_KEY=.*|MC_API_KEY=$KEY|" ~/cookclaw/.env.local && rm -f ~/cookclaw/.env.local.bak
+
+# Restart MC so it loads the new env (the running process still has the old key)
+lsof -i :3000 -sTCP:LISTEN -t | xargs kill 2>/dev/null
+( cd ~/.openclaw/mission-control && nohup pnpm dev > dev.log 2>&1 & )
+sleep 8
+
+# Restart openclaw daemon so MC_API_KEY reaches the agent
+openclaw gateway restart 2>/dev/null || (pkill -f openclaw; sleep 1; openclaw gateway start)
+
+# Re-verify
+./tests/test-mc-ping.sh
+```
+
+This is the same logic `setup-openclaw.sh:seed_mc_api_key()` runs on a fresh install — pre-seed our chosen key into MC's `.env` *before* MC starts, so MC reads our value instead of generating its own. Running it manually is the surgical recovery when the live processes have already drifted.
+
 ## What this test does NOT cover
 
 - Bidirectional task sync (MC → agent assignment) — needs the GET `/api/agents/{id}/heartbeat` polling loop, not yet wired.

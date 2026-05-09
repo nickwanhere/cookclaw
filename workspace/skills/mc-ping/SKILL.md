@@ -40,7 +40,7 @@ Use the value of `agent_name` from `~/.openclaw/workspace/IDENTITY.md` (rendered
      -H "x-api-key: $MC_API_KEY"
    ```
 
-   Expect `{"success": true}`. Anything else is a failure.
+   Success if response has `.status == "HEARTBEAT_OK"` OR `.success == true` (MC's openapi.json and actual implementation disagree on shape — accept either). The full success response also includes `agent`, `checked_at`, and may include `message: "No work items found"` when there are no pending tasks. Treat that as healthy, not as an error.
 
 3. **Reply** to the user. Single line under 200 chars:
 

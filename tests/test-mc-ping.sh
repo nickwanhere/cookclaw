@@ -62,16 +62,22 @@ fi
 echo "   ok — agent id: $agent_id"
 
 # 3. trigger heartbeat
+# Spec drift: openapi.json says {success: true}; actual response is
+# {status: "HEARTBEAT_OK", agent, checked_at, ...}. Accept either.
 echo "3. POSTing heartbeat..."
 hb_resp=$(curl -fsS -X POST "$MC_URL/api/agents/$agent_id/heartbeat" \
   -H "x-api-key: $MC_API_KEY")
-hb_success=$(echo "$hb_resp" | jq -r '.success // false')
-if [[ "$hb_success" != "true" ]]; then
-  echo "   FAIL — heartbeat did not return success=true. Response:" >&2
+hb_ok=$(echo "$hb_resp" | jq -r '
+  if .success == true then "ok"
+  elif .status == "HEARTBEAT_OK" then "ok"
+  else "fail"
+  end')
+if [[ "$hb_ok" != "ok" ]]; then
+  echo "   FAIL — heartbeat response did not indicate success. Response:" >&2
   echo "$hb_resp" >&2
   exit 1
 fi
-echo "   ok — heartbeat acknowledged"
+echo "   ok — heartbeat acknowledged ($(echo "$hb_resp" | jq -r '.status // "success=true"'))"
 
 # 4. check that MC remembers the agent (round-trip via GET /api/agents)
 echo "4. confirming agent visible in MC..."

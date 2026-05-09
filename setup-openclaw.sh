@@ -54,15 +54,15 @@ if [[ ! -d "$MC_DIR" ]]; then
 
   if [[ -d "$MC_DIR" ]]; then
     # Pre-approve native builds before install.sh runs pnpm install.
-    # pnpm 10.1+ supports `approve-builds <pkg1> <pkg2> ...` non-interactively;
-    # writes to pnpm-workspace.yaml's allowBuilds map. Without this, pnpm 11
-    # silently skips postinstall scripts and exits non-zero with
-    # ERR_PNPM_IGNORED_BUILDS, leaving better-sqlite3 et al. uncompiled.
+    # `--all` approves every package that requests build scripts — simpler
+    # than maintaining an explicit list that drifts as MC adds deps. We're
+    # already trusting MC's open-source supply chain by installing it.
+    # Without this, pnpm 11 silently skips postinstall scripts and exits
+    # non-zero with ERR_PNPM_IGNORED_BUILDS, leaving better-sqlite3 et al.
+    # uncompiled.
     if [[ -f "$MC_DIR/package.json" ]] && command -v pnpm >/dev/null 2>&1; then
-      ( cd "$MC_DIR" && pnpm approve-builds \
-          @parcel/watcher @swc/core better-sqlite3 esbuild \
-          node-pty sharp unrs-resolver vue-demi 2>&1 | tail -3 ) \
-        || echo "warning: pnpm approve-builds failed (older pnpm? <10.1?); pnpm rebuild fallback below will recover" >&2
+      ( cd "$MC_DIR" && pnpm approve-builds --all 2>&1 | tail -3 ) \
+        || echo "warning: pnpm approve-builds --all failed (older pnpm? <10.1?); pnpm rebuild fallback below will recover" >&2
     fi
 
     # Builds are pre-approved above, so install.sh's pnpm install should

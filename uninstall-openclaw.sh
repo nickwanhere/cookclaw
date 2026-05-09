@@ -57,6 +57,10 @@ for path in /opt/homebrew/bin/taskflow /usr/local/bin/taskflow; do
   fi
 done
 
+# 4a. ~/.openclaw/.env symlink is removed when ~/.openclaw is wiped above; nothing to do here
+# (kept for documentation — if step 3 was skipped, the symlink may still exist)
+[[ -L "$HOME/.openclaw/.env" ]] && rm -f "$HOME/.openclaw/.env"
+
 # 5. clean per-install state inside the template repo
 echo
 echo "cleaning per-install state in $SCRIPT_DIR..."

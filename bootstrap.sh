@@ -64,6 +64,15 @@ echo
 echo "[1/6] system install"
 "$SCRIPT_DIR/setup-openclaw.sh"
 
+# Symlink .env.local → ~/.openclaw/.env so the daemon can read env vars after restart/reboot.
+# OpenClaw auto-loads this file at gateway start (process env → cwd .env → ~/.openclaw/.env → config env block).
+mkdir -p "$HOME/.openclaw"
+if [[ -L "$HOME/.openclaw/.env" || -f "$HOME/.openclaw/.env" ]]; then
+  rm -f "$HOME/.openclaw/.env"
+fi
+ln -sf "$ENV_LOCAL" "$HOME/.openclaw/.env"
+echo "linked $HOME/.openclaw/.env → $ENV_LOCAL (daemon reads this on restart)"
+
 # 2. openclaw onboard non-interactively (daemon + workspace + initial config)
 echo
 echo "[2/6] openclaw onboard --non-interactive"

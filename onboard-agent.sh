@@ -211,7 +211,8 @@ jq -n \
     agents: { defaults: { model: { primary: $main_model, fallbacks: [] } } },
     models: { providers: { ($provider): { apiKey: { source: "env", provider: "default", id: $api_key_var } } } },
     plugins: { entries: { "active-memory": { config: { model: $active_model } } } },
-    channels: { telegram: { allowFrom: [$tg_owner_id] } }
+    channels: { telegram: { allowFrom: [$tg_owner_id] } },
+    commands: { ownerAllowFrom: ["telegram:" + $tg_owner_id] }
   }' > "$PROVIDER_CONFIG"
 echo "generated $PROVIDER_CONFIG"
 

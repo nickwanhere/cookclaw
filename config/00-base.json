@@ -11,5 +11,10 @@
         "every": "10m"
       }
     }
+  },
+  "messages": {
+    "groupChat": {
+      "visibleReplies": "automatic"
+    }
   }
 }

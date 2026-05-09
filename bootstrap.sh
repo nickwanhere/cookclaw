@@ -148,6 +148,15 @@ rsync -av --exclude='*.template' --exclude='_TEMPLATE.md' \
 
 echo
 echo "=== bootstrap complete ==="
-echo "Restart gateway: launchctl kickstart -k gui/\$UID/openclaw"
-echo "  or:            openclaw gateway restart"
-echo "Mission Control: http://localhost:3000  (token in .env.local: \$MC_API_KEY)"
+echo
+echo "Restart gateway:"
+echo "  launchctl kickstart -k gui/\$UID/openclaw"
+echo "  (or: openclaw gateway restart)"
+echo
+echo "Recommended one-time cleanup (disables 40+ bundled skills you don't have binaries for):"
+echo "  openclaw doctor --fix"
+echo
+echo "Verify:"
+echo "  openclaw doctor          # should be all green"
+echo "  http://localhost:3000    # Mission Control dashboard (token: \$MC_API_KEY in .env.local)"
+echo "  Then DM your bot on Telegram."

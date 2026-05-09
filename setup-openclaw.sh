@@ -53,17 +53,27 @@ if [[ ! -d "$MC_DIR" ]]; then
     || { echo "warning: mission-control clone failed" >&2; }
 
   if [[ -d "$MC_DIR" ]]; then
-    # Don't suppress install.sh output — surface errors instead of "warning: failed"
-    ( cd "$MC_DIR" && bash install.sh --local 2>&1 | tail -10 ) \
-      || echo "warning: mission-control install.sh --local failed (output above)" >&2
+    # pnpm 11 exits non-zero on ERR_PNPM_IGNORED_BUILDS even when install succeeds.
+    # We deliberately ignore install.sh's exit code and rely on `pnpm rebuild`
+    # (next step) to force native compiles, then hard-verify below.
+    ( cd "$MC_DIR" && bash install.sh --local 2>&1 | tail -10 ) || true
 
-    # pnpm 11+ blocks postinstall scripts by default. The package.json patch
-    # approach (pnpm.onlyBuiltDependencies) doesn't reliably take effect in
-    # 11.0.9; use `pnpm rebuild` which forces all native compiles regardless
-    # of the allowlist gate.
+    # Force native postinstall scripts to run (better-sqlite3, etc.).
+    # pnpm 11's onlyBuiltDependencies gate doesn't apply to `pnpm rebuild`.
     if [[ -f "$MC_DIR/package.json" ]]; then
       ( cd "$MC_DIR" && pnpm rebuild 2>&1 | tail -5 ) \
         || echo "warning: pnpm rebuild failed; native modules may not work" >&2
+    fi
+
+    # Hard-verify better-sqlite3 actually loads. MC crashes silently if it doesn't.
+    if [[ -f "$MC_DIR/package.json" ]]; then
+      if ! ( cd "$MC_DIR" && node -e "require('better-sqlite3')" 2>/dev/null ); then
+        echo "ERROR: better-sqlite3 still not loadable after pnpm rebuild." >&2
+        echo "  Try manually: cd $MC_DIR && pnpm rebuild better-sqlite3" >&2
+        echo "  Or check Node version mismatch: node -v" >&2
+      else
+        echo "verified: better-sqlite3 loads correctly"
+      fi
     fi
   fi
 else
@@ -73,18 +83,21 @@ fi
 # Start MC in background if not already on :3000
 if ! lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
   if [[ -f "$MC_DIR/package.json" ]] && command -v pnpm >/dev/null 2>&1; then
-    echo "starting mission-control..."
+    echo "starting mission-control (cold Next.js compile can take 30-60s)..."
     ( cd "$MC_DIR" && nohup pnpm dev > "$MC_DIR/dev.log" 2>&1 & )
-    # Wait briefly for it to bind port
-    for i in 1 2 3 4 5 6 7 8 9 10; do
+    # Next.js dev cold start is slow — give it up to 60s
+    for i in $(seq 1 60); do
       sleep 1
       if lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-        echo "mission-control running at http://localhost:3000 (logs: $MC_DIR/dev.log)"
+        echo "mission-control running at http://localhost:3000 (logs: $MC_DIR/dev.log) [bound in ${i}s]"
         break
       fi
     done
     if ! lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
-      echo "warning: mission-control did not bind :3000 within 10s; check $MC_DIR/dev.log" >&2
+      echo "warning: mission-control did not bind :3000 within 60s" >&2
+      echo "--- last 30 lines of $MC_DIR/dev.log ---" >&2
+      tail -30 "$MC_DIR/dev.log" >&2 || true
+      echo "--- end dev.log ---" >&2
     fi
   fi
 else

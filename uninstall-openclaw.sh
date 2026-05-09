@@ -62,12 +62,14 @@ done
 [[ -L "$HOME/.openclaw/.env" ]] && rm -f "$HOME/.openclaw/.env"
 
 # 5. clean per-install state inside the template repo
+# KEEP .env.local and profile.local.json — they hold secrets + wizard answers
+# that the user typed once. Retest cycles reuse these via bootstrap.sh.
+# For a TRUE clean slate (new owner, full reset), manually:
+#   rm .env.local profile.local.json
 echo
-echo "cleaning per-install state in $SCRIPT_DIR..."
-rm -f "$SCRIPT_DIR/.env.local"
-rm -f "$SCRIPT_DIR/profile.local.json"
+echo "cleaning generated state in $SCRIPT_DIR (keeping .env.local + profile.local.json)..."
 rm -f "$SCRIPT_DIR/config/"*.local.json 2>/dev/null
-rm -f "$SCRIPT_DIR/config/profile.local.json" 2>/dev/null  # legacy location
+rm -f "$SCRIPT_DIR/config/profile.local.json" 2>/dev/null  # legacy location, if present
 rm -f "$SCRIPT_DIR/workspace/IDENTITY.md"
 rm -f "$SCRIPT_DIR/workspace/USER.md"
 find "$SCRIPT_DIR/workspace/topics" -name '*.md' ! -name '_TEMPLATE.md' -delete 2>/dev/null || true

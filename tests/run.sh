@@ -49,7 +49,7 @@ test_scripts_syntax() {
 assert_with_output "all .sh files pass bash -n" test_scripts_syntax
 
 test_required_files_exist() {
-  for f in setup-openclaw.sh onboard-agent.sh merge-configs.sh sync-topics.sh uninstall-openclaw.sh bootstrap.sh \
+  for f in setup-openclaw.sh onboard-agent.sh merge-configs.sh sync-topics.sh uninstall-openclaw.sh bootstrap.sh install-skills.sh \
            workspace/SOUL.md workspace/AGENTS.md workspace/HEARTBEAT.md \
            workspace/IDENTITY.md.template workspace/USER.md.template \
            workspace/topics/_TEMPLATE.md \

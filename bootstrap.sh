@@ -153,10 +153,17 @@ echo "Restart gateway:"
 echo "  launchctl kickstart -k gui/\$UID/openclaw"
 echo "  (or: openclaw gateway restart)"
 echo
-echo "Recommended one-time cleanup (disables 40+ bundled skills you don't have binaries for):"
+echo "Optional: install bundled skills enabled by config/01a-skills.json:"
+echo "  ./install-skills.sh"
+echo
+echo "Recommended one-time cleanup (disables remaining unused bundled skills):"
 echo "  openclaw doctor --fix"
 echo
 echo "Verify:"
 echo "  openclaw doctor          # should be all green"
 echo "  http://localhost:3000    # Mission Control dashboard (token: \$MC_API_KEY in .env.local)"
 echo "  Then DM your bot on Telegram."
+echo
+echo "If doctor flags 'System Node 22 LTS not found' (you have nvm Node):"
+echo "  brew install node@22 && brew link node@22 --force --overwrite"
+echo "  openclaw gateway install --force    # relink daemon to brew Node"

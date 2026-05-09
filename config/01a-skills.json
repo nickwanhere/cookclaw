@@ -1,0 +1,18 @@
+{
+  "_comment": "Re-enables specific bundled skills that 'openclaw doctor --fix' would disable for missing binaries. Pair with install-skills.sh which installs the binaries themselves.",
+  "skills": {
+    "entries": {
+      "clawhub":      { "enabled": true },
+      "mcporter":     { "enabled": true },
+      "obsidian":     { "enabled": true },
+      "session-logs": { "enabled": true },
+      "summarize":    { "enabled": true },
+      "tmux":         { "enabled": true },
+      "video-frames": { "enabled": true },
+      "wacli":        { "enabled": true },
+      "xurl":         { "enabled": true },
+      "coding-agent": { "enabled": true },
+      "model-usage":  { "enabled": true }
+    }
+  }
+}

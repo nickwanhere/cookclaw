@@ -29,9 +29,19 @@ if [[ ${#fragments[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# Sorted alphabetically — numeric prefixes (00-, 01-, ...) define merge order.
-# `*` is jq's recursive object merge: later fragments override earlier on key collision.
-merged="$(jq -s 'reduce .[] as $c ({}; . * $c)' "${fragments[@]}")"
+# Strategy: deep-merge our fragments INTO existing ~/.openclaw/openclaw.json.
+# - Onboard wrote provider-specific keys (models.providers.<x>.baseUrl, .models)
+#   that we don't know how to compose. Preserving them.
+# - Our fragments add/override only what we own (plugins, channels, agents.defaults).
+# - Strip any key starting with `_` recursively (used for in-file `_comment` docs;
+#   OpenClaw's schema rejects unrecognized keys).
+merged="$({
+  if [[ -f "$TARGET" ]]; then cat "$TARGET"; else echo '{}'; fi
+  for f in "${fragments[@]}"; do cat "$f"; done
+} | jq -s '
+  reduce .[] as $c ({}; . * $c)
+  | walk(if type == "object" then with_entries(select(.key | startswith("_") | not)) else . end)
+')"
 
 if [[ $DRY_RUN -eq 1 ]]; then
   printf '%s\n' "$merged"

@@ -159,18 +159,18 @@ test_onboard_creates_profile_and_renders() {
   mkdir -p "$sandbox"
   cp -r "$SCRIPT_DIR"/* "$sandbox/" 2>/dev/null
   cp -r "$SCRIPT_DIR"/.env.example "$sandbox/.env.local"
-  rm -f "$sandbox/config/00-provider.local.json" "$sandbox/config/profile.local.json"
+  rm -f "$sandbox/config/00-provider.local.json" "$sandbox/profile.local.json"
   rm -f "$sandbox/workspace/IDENTITY.md" "$sandbox/workspace/USER.md"
 
   ( cd "$sandbox" && printf 'Test User\nDeveloper\n123456789\nLiam\ndefault vibe\nopenai\nopenai/gpt-5\nopenai/gpt-5-mini\nOPENAI_API_KEY\n' | ./onboard-agent.sh ) >/dev/null 2>&1
 
-  [[ -f "$sandbox/config/profile.local.json" ]] || { echo "no profile created"; return 1; }
+  [[ -f "$sandbox/profile.local.json" ]] || { echo "no profile created"; return 1; }
   [[ -f "$sandbox/config/00-provider.local.json" ]] || { echo "no provider config generated"; return 1; }
   [[ -f "$sandbox/workspace/IDENTITY.md" ]] || { echo "IDENTITY.md not rendered"; return 1; }
   [[ -f "$sandbox/workspace/USER.md" ]] || { echo "USER.md not rendered"; return 1; }
   grep -q "Test User" "$sandbox/workspace/USER.md" || { echo "USER.md missing user_name"; return 1; }
   grep -q "Liam" "$sandbox/workspace/IDENTITY.md" || { echo "IDENTITY.md missing agent_name"; return 1; }
-  jq -e '.user_name == "Test User"' "$sandbox/config/profile.local.json" >/dev/null || { echo "profile missing user_name"; return 1; }
+  jq -e '.user_name == "Test User"' "$sandbox/profile.local.json" >/dev/null || { echo "profile missing user_name"; return 1; }
 }
 assert_with_output "onboard creates profile + renders IDENTITY.md/USER.md from mock input" test_onboard_creates_profile_and_renders
 
@@ -190,11 +190,11 @@ EOF
   #          provider(empty=inferred), main_model, active_model, api_key_var(empty=inferred)
   ( cd "$sandbox" && printf 'Test\nDev\n\nLiam\nvibe\n\nanthropic/claude-sonnet-4-6\nanthropic/claude-haiku-4-5\n\n' | ./onboard-agent.sh ) >/dev/null 2>&1
 
-  jq -e '.telegram_owner_id == "987654321"' "$sandbox/config/profile.local.json" >/dev/null \
+  jq -e '.telegram_owner_id == "987654321"' "$sandbox/profile.local.json" >/dev/null \
     || { echo "telegram_owner_id not pulled from .env.local"; return 1; }
-  jq -e '.api_key_var == "ANTHROPIC_API_KEY"' "$sandbox/config/profile.local.json" >/dev/null \
+  jq -e '.api_key_var == "ANTHROPIC_API_KEY"' "$sandbox/profile.local.json" >/dev/null \
     || { echo "api_key_var not inferred from .env.local"; return 1; }
-  jq -e '.provider == "anthropic"' "$sandbox/config/profile.local.json" >/dev/null \
+  jq -e '.provider == "anthropic"' "$sandbox/profile.local.json" >/dev/null \
     || { echo "provider not inferred from api_key_var"; return 1; }
 }
 assert_with_output "onboard uses values already in .env.local as defaults (regression)" test_onboard_uses_env_local_defaults
@@ -213,13 +213,13 @@ EOF
   # No stdin — fully non-interactive
   ( cd "$sandbox" && ./onboard-agent.sh --non-interactive </dev/null ) >/dev/null 2>&1
 
-  jq -e '.telegram_owner_id == "987654321"' "$sandbox/config/profile.local.json" >/dev/null \
+  jq -e '.telegram_owner_id == "987654321"' "$sandbox/profile.local.json" >/dev/null \
     || { echo "telegram_owner_id not picked up"; return 1; }
-  jq -e '.provider == "anthropic"' "$sandbox/config/profile.local.json" >/dev/null \
+  jq -e '.provider == "anthropic"' "$sandbox/profile.local.json" >/dev/null \
     || { echo "provider not inferred"; return 1; }
-  jq -e '.main_model == "anthropic/claude-sonnet-4-6"' "$sandbox/config/profile.local.json" >/dev/null \
+  jq -e '.main_model == "anthropic/claude-sonnet-4-6"' "$sandbox/profile.local.json" >/dev/null \
     || { echo "main_model default not applied"; return 1; }
-  jq -e '.api_key_var == "ANTHROPIC_API_KEY"' "$sandbox/config/profile.local.json" >/dev/null \
+  jq -e '.api_key_var == "ANTHROPIC_API_KEY"' "$sandbox/profile.local.json" >/dev/null \
     || { echo "api_key_var not inferred"; return 1; }
   [[ -f "$sandbox/workspace/IDENTITY.md" ]] || { echo "IDENTITY.md not rendered"; return 1; }
   [[ -f "$sandbox/workspace/USER.md" ]] || { echo "USER.md not rendered"; return 1; }

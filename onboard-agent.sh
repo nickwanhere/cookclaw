@@ -16,10 +16,18 @@ NON_INTERACTIVE=0
 [[ "${1:-}" == "--non-interactive" ]] && NON_INTERACTIVE=1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROFILE="$SCRIPT_DIR/config/profile.local.json"
+# profile.local.json holds wizard answers — NOT an openclaw config fragment.
+# Lives at the repo root (not in config/) so merge-configs.sh doesn't pull it.
+PROFILE="$SCRIPT_DIR/profile.local.json"
 PROVIDER_CONFIG="$SCRIPT_DIR/config/00-provider.local.json"
 WORKSPACE="$SCRIPT_DIR/workspace"
 ENV_LOCAL="$SCRIPT_DIR/.env.local"
+
+# Migrate old profile location if upgrading
+OLD_PROFILE="$SCRIPT_DIR/config/profile.local.json"
+if [[ -f "$OLD_PROFILE" && ! -f "$PROFILE" ]]; then
+  mv "$OLD_PROFILE" "$PROFILE" 2>/dev/null && echo "migrated profile to $PROFILE"
+fi
 
 command -v jq >/dev/null 2>&1 || { echo "missing: jq (brew install jq)" >&2; exit 1; }
 

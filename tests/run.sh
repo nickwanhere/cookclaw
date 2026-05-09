@@ -49,7 +49,7 @@ test_scripts_syntax() {
 assert_with_output "all .sh files pass bash -n" test_scripts_syntax
 
 test_required_files_exist() {
-  for f in setup-openclaw.sh onboard-agent.sh merge-configs.sh sync-topics.sh uninstall-openclaw.sh \
+  for f in setup-openclaw.sh onboard-agent.sh merge-configs.sh sync-topics.sh uninstall-openclaw.sh bootstrap.sh \
            workspace/SOUL.md workspace/AGENTS.md workspace/HEARTBEAT.md \
            workspace/IDENTITY.md.template workspace/USER.md.template \
            workspace/topics/_TEMPLATE.md \
@@ -198,6 +198,33 @@ EOF
     || { echo "provider not inferred from api_key_var"; return 1; }
 }
 assert_with_output "onboard uses values already in .env.local as defaults (regression)" test_onboard_uses_env_local_defaults
+
+test_onboard_non_interactive() {
+  local sandbox="$TMPDIR_ROOT/onboard-non-interactive"
+  mkdir -p "$sandbox"
+  cp -r "$SCRIPT_DIR"/* "$sandbox/" 2>/dev/null
+
+  cat > "$sandbox/.env.local" <<'EOF'
+TELEGRAM_BOT_TOKEN=real-bot-token
+TELEGRAM_OWNER_ID=987654321
+ANTHROPIC_API_KEY=sk-real-anthropic-key
+EOF
+
+  # No stdin — fully non-interactive
+  ( cd "$sandbox" && ./onboard-agent.sh --non-interactive </dev/null ) >/dev/null 2>&1
+
+  jq -e '.telegram_owner_id == "987654321"' "$sandbox/config/profile.local.json" >/dev/null \
+    || { echo "telegram_owner_id not picked up"; return 1; }
+  jq -e '.provider == "anthropic"' "$sandbox/config/profile.local.json" >/dev/null \
+    || { echo "provider not inferred"; return 1; }
+  jq -e '.main_model == "anthropic/claude-sonnet-4-6"' "$sandbox/config/profile.local.json" >/dev/null \
+    || { echo "main_model default not applied"; return 1; }
+  jq -e '.api_key_var == "ANTHROPIC_API_KEY"' "$sandbox/config/profile.local.json" >/dev/null \
+    || { echo "api_key_var not inferred"; return 1; }
+  [[ -f "$sandbox/workspace/IDENTITY.md" ]] || { echo "IDENTITY.md not rendered"; return 1; }
+  [[ -f "$sandbox/workspace/USER.md" ]] || { echo "USER.md not rendered"; return 1; }
+}
+assert_with_output "onboard --non-interactive works with .env.local + inference (no prompts)" test_onboard_non_interactive
 
 test_onboard_rejects_non_numeric_telegram_id() {
   local sandbox="$TMPDIR_ROOT/onboard-bad-id"

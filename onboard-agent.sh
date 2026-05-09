@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Interactive onboarding wizard. Per-install setup:
+# Onboarding wizard. Per-install setup:
 #   - Renders IDENTITY.md and USER.md from templates
 #   - Generates config/00-provider.local.json (model provider, model IDs, API key SecretRef)
 #   - Updates .env.local with TELEGRAM_OWNER_ID
 #
+# Modes:
+#   ./onboard-agent.sh                  # interactive wizard
+#   ./onboard-agent.sh --non-interactive  # skip prompts, use defaults from .env.local + profile + provider inference. Fails if required values missing.
+#
 # Idempotent: re-run to edit. Profile values persist to config/profile.local.json.
+
+NON_INTERACTIVE=0
+[[ "${1:-}" == "--non-interactive" ]] && NON_INTERACTIVE=1
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROFILE="$SCRIPT_DIR/config/profile.local.json"
@@ -95,6 +102,15 @@ default_active_model_for() {
 
 prompt_field() {
   local label="$1" default="$2" required="${3:-0}" var
+  # Non-interactive: just return the default, fail if required-and-empty.
+  if [[ $NON_INTERACTIVE -eq 1 ]]; then
+    if [[ -z "$default" && "$required" == "1" ]]; then
+      echo "error: '$label' is required but has no default in non-interactive mode" >&2
+      exit 1
+    fi
+    printf '%s' "$default"
+    return 0
+  fi
   while true; do
     if [[ -n "$default" ]]; then
       read -r -p "$label [$default]: " var
@@ -111,15 +127,18 @@ prompt_field() {
   done
 }
 
-echo "=== OpenClaw agent onboarding ==="
-echo "(answers persist to $PROFILE; re-run to edit)"
-echo
+if [[ $NON_INTERACTIVE -eq 0 ]]; then
+  echo "=== OpenClaw agent onboarding ==="
+  echo "(answers persist to $PROFILE; re-run to edit)"
+  echo
+  echo "-- about you --"
+fi
 
-echo "-- about you --"
-USER_NAME="$(prompt_field 'Your name' "$(load_default user_name '')" 1)"
-echo
-USER_ROLE="$(prompt_field 'Your role (e.g. founder, marketer, designer)' "$(load_default user_role '')" 1)"
-echo
+# In non-interactive mode, name/role default to generic placeholders if not in profile —
+# the workspace owner is identified by TELEGRAM_OWNER_ID at runtime; name/role are cosmetic.
+USER_NAME="$(prompt_field 'Your name' "$(load_default user_name 'Owner')" 0)"
+USER_ROLE="$(prompt_field 'Your role (e.g. founder, marketer, designer)' "$(load_default user_role 'owner')" 0)"
+[[ $NON_INTERACTIVE -eq 0 ]] && echo
 ENV_TG_ID="$(read_env_var TELEGRAM_OWNER_ID "$ENV_LOCAL")"
 TG_OWNER_ID="$(prompt_field 'Your Telegram numeric user ID (from @userinfobot)' "$(load_default telegram_owner_id "$ENV_TG_ID")" 1)"
 if ! [[ "$TG_OWNER_ID" =~ ^[0-9]+$ ]]; then
@@ -127,28 +146,28 @@ if ! [[ "$TG_OWNER_ID" =~ ^[0-9]+$ ]]; then
   exit 1
 fi
 
-echo
-echo "-- about the agent --"
+if [[ $NON_INTERACTIVE -eq 0 ]]; then
+  echo
+  echo "-- about the agent --"
+fi
 AGENT_NAME="$(prompt_field 'Agent name' "$(load_default agent_name 'Liam')" 0)"
-echo
 AGENT_VIBE="$(prompt_field 'Agent vibe (one sentence)' "$(load_default agent_vibe 'direct, slightly sarcastic, helpful underneath')" 0)"
 
-echo
-echo "-- model provider --"
 INFERRED_KEY_VAR="$(infer_api_key_var "$ENV_LOCAL")"
 INFERRED_PROVIDER="$(api_key_var_to_provider "$INFERRED_KEY_VAR")"
-if [[ -n "$INFERRED_KEY_VAR" ]]; then
-  echo "(detected $INFERRED_KEY_VAR in .env.local — using as default)"
+if [[ $NON_INTERACTIVE -eq 0 ]]; then
+  echo
+  echo "-- model provider --"
+  if [[ -n "$INFERRED_KEY_VAR" ]]; then
+    echo "(detected $INFERRED_KEY_VAR in .env.local — using as default)"
+  fi
+  echo "Examples: openai, minimax, cerebras, google. Check OpenClaw docs for valid provider keys."
 fi
-echo "Examples: openai, minimax, cerebras, google. Check OpenClaw docs for valid provider keys."
 PROVIDER="$(prompt_field 'Provider key' "$(load_default provider "${INFERRED_PROVIDER:-openai}")" 1)"
-echo
-echo "Model IDs use 'provider/model' format. Defaults below are verified-current flagship/cheap-tier picks for known providers — override if you want different."
+[[ $NON_INTERACTIVE -eq 0 ]] && echo "Model IDs use 'provider/model' format. Defaults below are verified-current picks per provider."
 MAIN_MODEL="$(prompt_field "Main agent model" "$(load_default main_model "$(default_main_model_for "$PROVIDER")")" 1)"
-echo
-echo "Active-memory fires before every reply — cheap/fast tier of the same provider."
+[[ $NON_INTERACTIVE -eq 0 ]] && echo "Active-memory fires before every reply — cheap/fast tier."
 ACTIVE_MODEL="$(prompt_field "Active-memory model" "$(load_default active_model "$(default_active_model_for "$PROVIDER")")" 1)"
-echo
 DEFAULT_KEY_VAR="${INFERRED_KEY_VAR:-$(echo "$PROVIDER" | tr '[:lower:]' '[:upper:]')_API_KEY}"
 API_KEY_VAR="$(prompt_field 'API key environment variable name' "$(load_default api_key_var "$DEFAULT_KEY_VAR")" 1)"
 

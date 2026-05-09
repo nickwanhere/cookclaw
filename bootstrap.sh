@@ -68,17 +68,26 @@ echo "[1/6] system install"
 echo
 echo "[2/6] openclaw onboard --non-interactive"
 if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
-  # --accept-risk required for non-interactive: acknowledges API keys + daemon
-  # run unattended without per-prompt warnings. See docs.openclaw.ai/security
+  # Sanity check: env var must be exported for openclaw to pick up
+  if [[ -z "${!PROVIDER_KEY_VAR:-}" ]]; then
+    echo "error: $PROVIDER_KEY_VAR is not in process env after sourcing .env.local" >&2
+    echo "Check .env.local syntax (no quotes around the value, no leading whitespace)" >&2
+    exit 1
+  fi
+
+  # --accept-risk required for non-interactive (acknowledges automated install).
+  # --secret-input-mode ref tells OpenClaw to write env-ref placeholders (no plaintext).
+  # OpenClaw auto-detects which provider based on which *_API_KEY is in env
+  # (we exported it via `source .env.local` above). Don't pass --custom-api-key —
+  # that's for custom OpenAI-compatible providers, not the standard ones.
   openclaw onboard \
     --non-interactive \
     --accept-risk \
     --mode local \
     --auth-choice apiKey \
     --secret-input-mode ref \
-    --custom-api-key "$PROVIDER_KEY_VAR" \
     --install-daemon \
-    || { echo "openclaw onboard failed; check flags against your installed version" >&2; exit 1; }
+    || { echo "openclaw onboard failed. Try running 'openclaw onboard --help' to confirm flags for v$(openclaw --version 2>/dev/null)" >&2; exit 1; }
 else
   echo "(skipping — ~/.openclaw/openclaw.json already exists)"
 fi

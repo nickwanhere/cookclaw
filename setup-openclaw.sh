@@ -49,12 +49,47 @@ ENV_LOCAL="$SETUP_DIR/.env.local"
 
 if [[ ! -d "$MC_DIR" ]]; then
   echo "installing mission-control (local dashboard)..."
-  git clone --depth=1 https://github.com/builderz-labs/mission-control "$MC_DIR"
-  ( cd "$MC_DIR" && bash install.sh --local >/dev/null 2>&1 ) || \
-    echo "warning: mission-control install.sh --local failed; run manually: cd $MC_DIR && bash install.sh --local" >&2
-  echo "mission-control installed at $MC_DIR"
+  git clone --depth=1 https://github.com/builderz-labs/mission-control "$MC_DIR" \
+    || { echo "warning: mission-control clone failed" >&2; }
+
+  if [[ -d "$MC_DIR" ]]; then
+    # Don't suppress install.sh output — surface errors instead of "warning: failed"
+    ( cd "$MC_DIR" && bash install.sh --local 2>&1 | tail -10 ) \
+      || echo "warning: mission-control install.sh --local failed (output above)" >&2
+
+    # pnpm 11+ blocks postinstall scripts by default. Patch package.json with the
+    # known-good native-deps allowlist so subsequent pnpm install can compile them.
+    if [[ -f "$MC_DIR/package.json" ]]; then
+      jq '. + {pnpm: ((.pnpm // {}) + {onlyBuiltDependencies: ["@parcel/watcher","@swc/core","better-sqlite3","esbuild","node-pty","sharp","unrs-resolver","vue-demi"]})}' \
+        "$MC_DIR/package.json" > "$MC_DIR/package.json.tmp" \
+        && mv "$MC_DIR/package.json.tmp" "$MC_DIR/package.json"
+      ( cd "$MC_DIR" && pnpm install 2>&1 | tail -3 ) \
+        || echo "warning: pnpm install (with native build allowlist) failed" >&2
+    fi
+  fi
 else
   echo "mission-control already installed: $MC_DIR"
+fi
+
+# Start MC in background if not already on :3000
+if ! lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+  if [[ -f "$MC_DIR/package.json" ]] && command -v pnpm >/dev/null 2>&1; then
+    echo "starting mission-control..."
+    ( cd "$MC_DIR" && nohup pnpm dev > "$MC_DIR/dev.log" 2>&1 & )
+    # Wait briefly for it to bind port
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+      sleep 1
+      if lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo "mission-control running at http://localhost:3000 (logs: $MC_DIR/dev.log)"
+        break
+      fi
+    done
+    if ! lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+      echo "warning: mission-control did not bind :3000 within 10s; check $MC_DIR/dev.log" >&2
+    fi
+  fi
+else
+  echo "mission-control already running on :3000"
 fi
 
 # Extract or generate MC API key, write to .env.local

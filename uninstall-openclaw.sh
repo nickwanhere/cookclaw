@@ -24,13 +24,18 @@ echo "Keeps: this repo's committed files (scripts, templates, configs)."
 echo
 if ! confirm "Proceed?"; then echo "aborted"; exit 0; fi
 
-# 1. stop OpenClaw daemon
+# 1. stop OpenClaw daemon + Mission Control
 echo
 if command -v openclaw >/dev/null 2>&1; then
   echo "stopping openclaw daemon (best effort)..."
   openclaw gateway stop 2>/dev/null || true
   launchctl unload "$HOME/Library/LaunchAgents/openclaw.plist" 2>/dev/null || true
   pkill -f "openclaw" 2>/dev/null || true
+fi
+# Kill any pnpm dev / next dev running for Mission Control
+if lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+  echo "stopping mission-control on :3000..."
+  lsof -i :3000 -sTCP:LISTEN -t | xargs kill 2>/dev/null || true
 fi
 
 # 2. uninstall openclaw npm package

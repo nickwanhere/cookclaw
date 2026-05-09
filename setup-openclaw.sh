@@ -53,13 +53,26 @@ if [[ ! -d "$MC_DIR" ]]; then
     || { echo "warning: mission-control clone failed" >&2; }
 
   if [[ -d "$MC_DIR" ]]; then
-    # pnpm 11 exits non-zero on ERR_PNPM_IGNORED_BUILDS even when install succeeds.
-    # We deliberately ignore install.sh's exit code and rely on `pnpm rebuild`
-    # (next step) to force native compiles, then hard-verify below.
+    # Pre-approve native builds before install.sh runs pnpm install.
+    # pnpm 10.1+ supports `approve-builds <pkg1> <pkg2> ...` non-interactively;
+    # writes to pnpm-workspace.yaml's allowBuilds map. Without this, pnpm 11
+    # silently skips postinstall scripts and exits non-zero with
+    # ERR_PNPM_IGNORED_BUILDS, leaving better-sqlite3 et al. uncompiled.
+    if [[ -f "$MC_DIR/package.json" ]] && command -v pnpm >/dev/null 2>&1; then
+      ( cd "$MC_DIR" && pnpm approve-builds \
+          @parcel/watcher @swc/core better-sqlite3 esbuild \
+          node-pty sharp unrs-resolver vue-demi 2>&1 | tail -3 ) \
+        || echo "warning: pnpm approve-builds failed (older pnpm? <10.1?); pnpm rebuild fallback below will recover" >&2
+    fi
+
+    # Builds are pre-approved above, so install.sh's pnpm install should
+    # complete without ERR_PNPM_IGNORED_BUILDS. We still tolerate non-zero
+    # exit in case install.sh fails for other reasons we can recover from.
     ( cd "$MC_DIR" && bash install.sh --local 2>&1 | tail -10 ) || true
 
-    # Force native postinstall scripts to run (better-sqlite3, etc.).
-    # pnpm 11's onlyBuiltDependencies gate doesn't apply to `pnpm rebuild`.
+    # Belt-and-suspenders: force native compiles. Idempotent + harmless on
+    # re-runs. Catches the case where approve-builds didn't take effect
+    # (pre-10.1 pnpm, lockfile already resolved without scripts, etc.).
     if [[ -f "$MC_DIR/package.json" ]]; then
       ( cd "$MC_DIR" && pnpm rebuild 2>&1 | tail -5 ) \
         || echo "warning: pnpm rebuild failed; native modules may not work" >&2

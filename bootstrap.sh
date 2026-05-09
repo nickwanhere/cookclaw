@@ -94,15 +94,21 @@ if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
       ;;
   esac
 
-  # The key value is passed directly here — OpenClaw bakes it into openclaw.json.
-  # That's fine: step 5 (merge-configs.sh) overwrites openclaw.json with our
-  # SecretRef-shaped config, restoring env-ref behavior within seconds.
+  # --secret-input-mode ref persists key as env-ref (no plaintext in openclaw.json).
+  # --skip-* flags tell onboard to leave things we own (workspace, channels, skills)
+  # alone — we deploy them ourselves via rsync + merge-configs.sh.
   openclaw onboard \
     --non-interactive \
     --accept-risk \
     --mode local \
     --auth-choice "$AUTH_CHOICE" \
     "$PROVIDER_FLAG" "${!PROVIDER_KEY_VAR}" \
+    --secret-input-mode ref \
+    --node-manager npm \
+    --skip-bootstrap \
+    --skip-channels \
+    --skip-skills \
+    --skip-ui \
     --install-daemon \
     || { echo "openclaw onboard failed. Run 'openclaw onboard --help' and check flag set for v$(openclaw --version 2>/dev/null)" >&2; exit 1; }
 else

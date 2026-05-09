@@ -77,5 +77,6 @@ rm -f "$SCRIPT_DIR/openclaw.json.bak."* 2>/dev/null
 
 echo
 echo "=== uninstall complete ==="
-echo "Template intact at $SCRIPT_DIR"
-echo "To reinstall: cp .env.example .env.local && ./setup-openclaw.sh"
+echo "Template intact at $SCRIPT_DIR (.env.local + profile.local.json kept for retest)."
+echo "To reinstall: ./bootstrap.sh"
+echo "For a true clean slate first: rm .env.local profile.local.json"

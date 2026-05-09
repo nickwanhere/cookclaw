@@ -99,13 +99,7 @@ else
 fi
 
 echo
-echo "next steps:"
-echo "  1. openclaw onboard --install-daemon   # interactive: model + API key (once)"
-echo "  2. cp .env.example .env.local          # fill in TELEGRAM_BOT_TOKEN + API key"
-echo "  3. ./onboard-agent.sh                  # customize IDENTITY/USER for this install"
-echo "  4. set -a; source .env.local; set +a   # load env vars"
-echo "  5. cp workspace/*.md ~/.openclaw/workspace/   # deploy bootstrap files (templates excluded by glob)"
-echo "  6. ./sync-topics.sh                    # if you have topic files in workspace/topics/"
-echo "  7. ./merge-configs.sh --dry-run        # preview merged openclaw.json"
-echo "  8. ./merge-configs.sh                  # write it"
-echo "  9. restart the openclaw gateway"
+echo
+echo "system install complete (OpenClaw + TaskFlow + Mission Control)."
+echo "If you ran this directly, finish setup with: ./bootstrap.sh"
+echo "(if invoked via bootstrap.sh, it continues automatically)"

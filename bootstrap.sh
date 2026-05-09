@@ -141,10 +141,20 @@ echo "[5/6] merge configs"
 
 # 6. deploy workspace bootstrap + skills + topics
 echo
-echo "[6/6] deploy workspace"
+echo "[6/7] deploy workspace"
 mkdir -p "$HOME/.openclaw/workspace"
 rsync -av --exclude='*.template' --exclude='_TEMPLATE.md' \
   "$SCRIPT_DIR/workspace/" "$HOME/.openclaw/workspace/" >/dev/null
+
+# 7. install bundled skill binaries (mcporter, clawhub, obsidian-cli, etc.)
+# Skip with: SKIP_SKILLS=1 ./bootstrap.sh
+echo
+echo "[7/7] install bundled skill binaries"
+if [[ "${SKIP_SKILLS:-0}" == "1" ]]; then
+  echo "(skipped — SKIP_SKILLS=1 set)"
+else
+  "$SCRIPT_DIR/install-skills.sh" 2>&1 | sed 's/^/  /'
+fi
 
 echo
 echo "=== bootstrap complete ==="
@@ -152,9 +162,6 @@ echo
 echo "Restart gateway:"
 echo "  launchctl kickstart -k gui/\$UID/openclaw"
 echo "  (or: openclaw gateway restart)"
-echo
-echo "Optional: install bundled skills enabled by config/01a-skills.json:"
-echo "  ./install-skills.sh"
 echo
 echo "Recommended one-time cleanup (disables remaining unused bundled skills):"
 echo "  openclaw doctor --fix"

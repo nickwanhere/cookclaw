@@ -200,15 +200,18 @@ echo "saved profile → $PROFILE"
 
 # --- generate provider config fragment ---
 # SecretRef syntax: { source, provider, id } — verified at docs.openclaw.ai
+# Telegram allowFrom must be literal IDs (no SecretRefs in arrays), so resolved here.
 jq -n \
   --arg provider "$PROVIDER" \
   --arg main_model "$MAIN_MODEL" \
   --arg active_model "$ACTIVE_MODEL" \
   --arg api_key_var "$API_KEY_VAR" \
+  --arg tg_owner_id "$TG_OWNER_ID" \
   '{
     agents: { defaults: { model: { primary: $main_model, fallbacks: [] } } },
     models: { providers: { ($provider): { apiKey: { source: "env", provider: "default", id: $api_key_var } } } },
-    plugins: { entries: { "active-memory": { config: { model: $active_model } } } }
+    plugins: { entries: { "active-memory": { config: { model: $active_model } } } },
+    channels: { telegram: { allowFrom: [$tg_owner_id] } }
   }' > "$PROVIDER_CONFIG"
 echo "generated $PROVIDER_CONFIG"
 

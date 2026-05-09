@@ -1,11 +1,10 @@
 {
-  "_comment": "Telegram is a CHANNEL, not a plugin. SecretRef syntax verified against docs.openclaw.ai: { source, provider, id }. dmPolicy 'allowlist' + numeric IDs in allowFrom locks the bot to just you.",
+  "_comment": "Telegram is a CHANNEL, not a plugin. botToken accepts a SecretRef. allowFrom does NOT — it must be an array of literal user IDs (string|number), so it's resolved at install time by onboard-agent.sh into 00-provider.local.json.",
   "channels": {
     "telegram": {
       "enabled": true,
       "botToken": { "source": "env", "provider": "default", "id": "TELEGRAM_BOT_TOKEN" },
       "dmPolicy": "allowlist",
-      "allowFrom": [{ "source": "env", "provider": "default", "id": "TELEGRAM_OWNER_ID" }],
       "groupPolicy": "disabled"
     }
   }

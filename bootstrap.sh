@@ -61,7 +61,7 @@ echo "=== bootstrap (provider: $PROVIDER_KEY_VAR) ==="
 
 # 1. system install: OpenClaw + TaskFlow + Mission Control
 echo
-echo "[1/6] system install"
+echo "[1/7] system install"
 "$SCRIPT_DIR/setup-openclaw.sh"
 
 # Symlink .env.local → ~/.openclaw/.env so the daemon can read env vars after restart/reboot.
@@ -75,7 +75,7 @@ echo "linked $HOME/.openclaw/.env → $ENV_LOCAL (daemon reads this on restart)"
 
 # 2. openclaw onboard non-interactively (daemon + workspace + initial config)
 echo
-echo "[2/6] openclaw onboard --non-interactive"
+echo "[2/7] openclaw onboard --non-interactive"
 if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
   # Sanity check: env var must be exported for the case below to read it
   if [[ -z "${!PROVIDER_KEY_VAR:-}" ]]; then
@@ -126,17 +126,17 @@ fi
 
 # 3. agent identity onboard (non-interactive)
 echo
-echo "[3/6] agent identity setup"
+echo "[3/7] agent identity setup"
 "$SCRIPT_DIR/onboard-agent.sh" --non-interactive
 
 # 4. sync topics
 echo
-echo "[4/6] sync topics"
+echo "[4/7] sync topics"
 "$SCRIPT_DIR/sync-topics.sh"
 
 # 5. merge configs (this overwrites openclaw.json with our shape)
 echo
-echo "[5/6] merge configs"
+echo "[5/7] merge configs"
 "$SCRIPT_DIR/merge-configs.sh"
 
 # 6. deploy workspace bootstrap + skills + topics
@@ -167,9 +167,10 @@ echo "Recommended one-time cleanup (disables remaining unused bundled skills):"
 echo "  openclaw doctor --fix"
 echo
 echo "Verify:"
-echo "  openclaw doctor          # should be all green"
-echo "  http://localhost:3000    # Mission Control dashboard (token: \$MC_API_KEY in .env.local)"
-echo "  Then DM your bot on Telegram."
+echo "  openclaw doctor                     # should be all green"
+echo "  http://localhost:3000               # Mission Control dashboard"
+echo "  ./tests/test-mc-ping.sh             # standalone MC integration test"
+echo "  Then DM your bot on Telegram (try: /mc-ping for MC heartbeat, /work for task summary)."
 echo
 echo "If doctor flags 'System Node 22 LTS not found' (you have nvm Node):"
 echo "  brew install node@22 && brew link node@22 --force --overwrite"

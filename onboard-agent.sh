@@ -203,8 +203,16 @@ echo "saved profile → $PROFILE"
 # These keys are resolved at install time (no runtime substitution available):
 #   - Telegram allowFrom: must be literal IDs (no SecretRefs in arrays)
 #   - memory-wiki vault.path: must be absolute path (no ~ / ${HOME} expansion in plugins.entries)
-VAULT_PATH="$HOME/.openclaw/wiki/main"
+# VAULT_PATH from .env.local lets the owner point at an existing Obsidian vault.
+VAULT_PATH="${VAULT_PATH:-$HOME/.openclaw/wiki/main}"
+# Expand ~ if user set a tilde path in .env.local
+VAULT_PATH="${VAULT_PATH/#\~/$HOME}"
+if [[ "$VAULT_PATH" != /* ]]; then
+  echo "error: VAULT_PATH must be an absolute path (got: $VAULT_PATH)" >&2
+  exit 1
+fi
 mkdir -p "$VAULT_PATH"
+echo "memory-wiki vault path: $VAULT_PATH"
 jq -n \
   --arg provider "$PROVIDER" \
   --arg main_model "$MAIN_MODEL" \

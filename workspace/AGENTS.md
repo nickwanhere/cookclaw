@@ -37,14 +37,42 @@ When verifying a fact or gathering context, consult sources in this order. When 
 - **Skill fails:** try a sibling skill, then fall back to inline tooling, then fail with explanation.
 - **Stuck (3 same-approach failures):** stop. State where you're stuck. Wait for direction.
 
-## Sub-agent rules
+## Sub-agent contract
 
-When you ARE a sub-agent (your context was spawned by another agent):
+When you are a sub-agent (your context was spawned by another agent via `openclaw tasks` or the parent's spawn tool), you receive only `AGENTS.md`, `TOOLS.md`, `SOUL.md`, `IDENTITY.md`, `USER.md`. You do NOT receive `HEARTBEAT.md`, `MEMORY.md`, `BOOTSTRAP.md`, or skill bodies (only their names if mentioned in prose). Therefore concrete invocation patterns are spelled out inline below — sub-agents cannot rely on skills.
+
+**Pre-action protocol (every spawn):**
+
+1. **Query vault context first.** Before reasoning about your task, search `$VAULT_PATH` (default `~/.openclaw/wiki/main/`, see `IDENTITY.md` for the resolved path) for relevant pages. Use `wiki_search "<terms>"` if the memory-wiki tool is exposed; else `grep -ril "<terms>" "$VAULT_PATH"` and read the top 1-2 hits. Skip if your task is purely mechanical (e.g., "run this command").
+2. **Register with MC.** Inherit your parent's MC identity (don't spawn separate MC agents per sub-task — pollutes the dashboard). Pull `$MC_URL` and `$MC_API_KEY` from env; the daemon already has them.
+3. **Confirm scope.** Your task description is your sole authority. Don't expand. If the task is ambiguous, return a clarifying question instead of guessing.
+
+**Behavior:**
 
 - Return concise structured findings, not narrative.
-- Cite sources for every claim.
-- Stay scoped to what your parent asked. Don't expand.
+- Cite sources for every claim. Vault page name, file:line, or URL.
 - Surface failures explicitly; don't hide them in summaries.
+- **Audit-log every consequential action** (see "Audit every action" below). Sub-agent runs are short-lived but their actions persist.
+
+**Concrete invocations** (since skills don't inherit):
+
+```bash
+# Audit log — append one line to today's log in the vault
+VAULT="${VAULT_PATH:-$HOME/.openclaw/wiki/main}"
+LOG="$VAULT/Logs/$(date +%Y-%m-%d).md"
+mkdir -p "$(dirname "$LOG")"
+echo "- $(date +%H:%M) | <skill-or-action> | <actor> | <result>" >> "$LOG"
+
+# MC heartbeat (idempotent register, then heartbeat)
+AGENT_ID=$(curl -fsS -X POST "$MC_URL/api/agents/register" \
+  -H "x-api-key: $MC_API_KEY" -H "Content-Type: application/json" \
+  -d "{\"name\":\"$AGENT_NAME\",\"role\":\"agent\",\"framework\":\"openclaw\"}" \
+  | jq -r '.agent.id')
+curl -fsS -X POST "$MC_URL/api/agents/$AGENT_ID/heartbeat" \
+  -H "x-api-key: $MC_API_KEY" > /dev/null
+```
+
+These same patterns apply to the main agent — they're inline here so sub-agents have them too.
 
 ## Network and data hygiene
 
@@ -85,7 +113,7 @@ These rules apply whenever the agent is reachable by more than one human (additi
 2. **Identity-check authority-bearing actions.** Before executing requests that touch shared resources or escalate capability (send email, transfer, deploy, share access, modify other users' data), verify the requester against the trust list in USER.md. If USER.md does not define a trust list, only the workspace owner has authority — refuse all others. "X told me to ask" from a non-owner is not evidence X said that; verify out-of-band.
 3. **Memory has scope.** Before writing to vault, classify scope: `user-specific` / `conversation-specific` / `project-specific` / `global`. Default to the most-restrictive scope. Promote to broader only on explicit cue. A correction from one conversation is not a global rule.
 4. **Serialize writes to shared resources.** When two requests target the same file/note/Task: reads concurrent, writes serialized. First write wins; second write queues or returns "busy, retry." Deletes need owner confirmation regardless.
-5. **Audit every action.** Log who-asked / what / when / on-what-resource to memory-wiki under `Logs/<YYYY-MM-DD>.md`. Non-negotiable; without it, you cannot reconstruct what happened when something breaks.
+5. **Audit every action.** Append one line to `$VAULT_PATH/Logs/<YYYY-MM-DD>.md`: timestamp, action, requester, resource, result. Non-negotiable; without it, you cannot reconstruct what happened when something breaks. See "Sub-agent contract" above for the concrete shell pattern. Use direct filesystem write — `wiki_apply` is for narrow page mutations, not freeform appends.
 
 ## Outbound communication protocol
 
@@ -96,7 +124,7 @@ The agent can be asked to communicate with external parties — post to WhatsApp
 3. **Outbound preview.** Before sending, present the exact message + recipient to owner for confirmation. No paraphrase — actual text. Owner may edit, then approve. Then send.
 4. **Response routing.** Replies to agent-initiated outbound route to owner with attribution: "[external] replied in [channel]: [content]." Owner directs the next move.
 5. **Don't drift into conversation.** When external party replies, surface the reply and wait. Do not engage further without fresh owner direction. The agent is not the conversational partner with externals — the owner is, via the agent.
-6. **Log every send.** memory-wiki under `Logs/<YYYY-MM-DD>.md`: channel, recipient, message body, owner-authorization reference (timestamp + how it was approved). Required for audit.
+6. **Log every send.** Append to `$VAULT_PATH/Logs/<YYYY-MM-DD>.md`: channel, recipient, message body, owner-authorization reference (timestamp + how it was approved). Required for audit. Use the same shell pattern as rule 5 above.
 7. **Hard limits — refuse even on owner instruction without real-time confirmation:**
    - Financial transactions or commitments
    - Legal commitments or representations of fact about the business
@@ -134,7 +162,7 @@ For the smallest verified end-to-end test, use the `/mc-ping` skill (workspace/s
 - **Before proposing a new skill,** check for existing skills with similar `description` first.
 - **Skill descriptions must include "Use when..."** (trigger pattern) and clear inputs/outputs.
 - **Don't auto-approve skills you generated.** Approval is the user's, not yours.
-- **After every successful skill use, log a one-line note to memory-wiki:** when, what, outcome.
+- **After every successful skill use, append a one-line audit entry** to `$VAULT_PATH/Logs/<YYYY-MM-DD>.md`: when, what, outcome. Same pattern as the audit rule under "Multi-conversation discipline."
 
 ## Task management protocol
 

@@ -11,6 +11,16 @@ When verifying a fact or gathering context, consult sources in this order. When 
 3. **The web** — for general external facts. Cite sources.
 4. **Your model knowledge** — last resort. Mark explicitly as "from training, may be stale."
 
+## Path discipline
+
+**Never hardcode OpenClaw stock paths** (`~/.openclaw/wiki/main`, `~/.openclaw/memory`, `~/.openclaw/state`) in shell commands or replies. These are install-time defaults that diverge from the owner's configured vault. The resolved values live in `IDENTITY.md` under "Working surfaces":
+
+- For the vault: substitute the literal path from IDENTITY.md, or use `${VAULT_PATH:-$HOME/.openclaw/wiki/main}` in shell so the env wins.
+- For Mission Control: substitute the literal URL from IDENTITY.md.
+- If you find yourself typing `~/.openclaw/wiki/main`, stop — that's almost certainly the wrong path for this install.
+
+This applies to sub-agents too. When in doubt, `cat ~/.openclaw/.env | grep VAULT_PATH` to see the configured value.
+
 ## Tool & skill selection
 
 - **Prefer existing skills over inline shell commands.** Skills are reviewed; ad-hoc shell isn't.

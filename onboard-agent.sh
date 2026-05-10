@@ -233,6 +233,7 @@ jq -n \
 echo "generated $PROVIDER_CONFIG"
 
 # --- render workspace templates ---
+MC_URL_RESOLVED="${MC_URL:-http://localhost:3000}"
 render_template() {
   local template="$1" output="$2"
   [[ -f "$template" ]] || { echo "error: template not found: $template" >&2; exit 1; }
@@ -242,6 +243,8 @@ render_template() {
     -e "s|{{agent_name}}|$AGENT_NAME|g" \
     -e "s|{{agent_vibe}}|$AGENT_VIBE|g" \
     -e "s|{{telegram_owner_id}}|$TG_OWNER_ID|g" \
+    -e "s|{{vault_path}}|$VAULT_PATH|g" \
+    -e "s|{{mc_url}}|$MC_URL_RESOLVED|g" \
     "$template" > "$output"
   echo "rendered $output"
 }

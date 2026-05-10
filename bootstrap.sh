@@ -61,7 +61,7 @@ echo "=== bootstrap (provider: $PROVIDER_KEY_VAR) ==="
 
 # 1. system install: OpenClaw + TaskFlow + Mission Control
 echo
-echo "[1/8] system install"
+echo "[1/9] system install"
 "$SCRIPT_DIR/setup-openclaw.sh"
 
 # Symlink .env.local → ~/.openclaw/.env so the daemon can read env vars after restart/reboot.
@@ -75,7 +75,7 @@ echo "linked $HOME/.openclaw/.env → $ENV_LOCAL (daemon reads this on restart)"
 
 # 2. openclaw onboard non-interactively (daemon + workspace + initial config)
 echo
-echo "[2/8] openclaw onboard --non-interactive"
+echo "[2/9] openclaw onboard --non-interactive"
 if [[ ! -f "$HOME/.openclaw/openclaw.json" ]]; then
   # Sanity check: env var must be exported for the case below to read it
   if [[ -z "${!PROVIDER_KEY_VAR:-}" ]]; then
@@ -126,22 +126,22 @@ fi
 
 # 3. agent identity onboard (non-interactive)
 echo
-echo "[3/8] agent identity setup"
+echo "[3/9] agent identity setup"
 "$SCRIPT_DIR/onboard-agent.sh" --non-interactive
 
 # 4. sync topics
 echo
-echo "[4/8] sync topics"
+echo "[4/9] sync topics"
 "$SCRIPT_DIR/sync-topics.sh"
 
 # 5. merge configs (this overwrites openclaw.json with our shape)
 echo
-echo "[5/8] merge configs"
+echo "[5/9] merge configs"
 "$SCRIPT_DIR/merge-configs.sh"
 
 # 6. deploy workspace bootstrap + skills + topics
 echo
-echo "[6/8] deploy workspace"
+echo "[6/9] deploy workspace"
 mkdir -p "$HOME/.openclaw/workspace"
 rsync -av --exclude='*.template' --exclude='_TEMPLATE.md' \
   "$SCRIPT_DIR/workspace/" "$HOME/.openclaw/workspace/" >/dev/null
@@ -149,18 +149,42 @@ rsync -av --exclude='*.template' --exclude='_TEMPLATE.md' \
 # 7. install bundled skill binaries (mcporter, clawhub, obsidian-cli, etc.)
 # Skip with: SKIP_SKILLS=1 ./bootstrap.sh
 echo
-echo "[7/8] install bundled skill binaries"
+echo "[7/9] install bundled skill binaries"
 if [[ "${SKIP_SKILLS:-0}" == "1" ]]; then
   echo "(skipped — SKIP_SKILLS=1 set)"
 else
   "$SCRIPT_DIR/install-skills.sh" 2>&1 | sed 's/^/  /'
 fi
 
-# 8. register agent with mission-control so it appears in the dashboard
+# 8. scaffold vault layout (idempotent — never overwrites owner content)
+# Creates the 5 memory-wiki folders + Logs/ + WIKI.md + index.md if missing.
+# Skips if VAULT_PATH is unset (shouldn't happen — onboard-agent.sh defaults it).
+echo
+echo "[8/9] scaffold vault layout"
+VAULT="${VAULT_PATH:-$HOME/.openclaw/wiki/main}"
+mkdir -p "$VAULT"
+SCAFFOLD="$SCRIPT_DIR/vault-scaffold"
+if [[ -d "$SCAFFOLD" ]]; then
+  for f in entities concepts syntheses sources reports Logs; do
+    mkdir -p "$VAULT/$f"
+  done
+  # Copy WIKI.md / index.md only if missing — never overwrite owner edits
+  for f in WIKI.md index.md; do
+    if [[ ! -f "$VAULT/$f" && -f "$SCAFFOLD/$f" ]]; then
+      cp "$SCAFFOLD/$f" "$VAULT/$f"
+      echo "  scaffolded $f"
+    fi
+  done
+  echo "  vault layout ready at $VAULT (folders ensured; WIKI.md/index.md only on first run)"
+else
+  echo "  (no vault-scaffold/ in repo; skipped)"
+fi
+
+# 9. register agent with mission-control so it appears in the dashboard
 # immediately (without waiting for the first heartbeat tick).
 # Idempotent: POST /api/agents/register returns existing entry on name match.
 echo
-echo "[8/8] register agent with mission-control"
+echo "[9/9] register agent with mission-control"
 if [[ -x "$SCRIPT_DIR/tests/test-mc-ping.sh" ]] && lsof -i :3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
   AGENT_NAME=$(jq -r '.agent_name // empty' "$SCRIPT_DIR/profile.local.json" 2>/dev/null)
   AGENT_NAME="${AGENT_NAME:-cookclaw}"

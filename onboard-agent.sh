@@ -213,6 +213,16 @@ if [[ "$VAULT_PATH" != /* ]]; then
 fi
 mkdir -p "$VAULT_PATH"
 echo "memory-wiki vault path: $VAULT_PATH"
+
+# Convert FALLBACK_MODELS env var (comma-separated "provider/model" pairs)
+# into a JSON array. Empty input → empty array → no failover.
+if [[ -n "${FALLBACK_MODELS:-}" ]]; then
+  FALLBACKS_JSON=$(echo "$FALLBACK_MODELS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')
+  echo "model fallback chain: $FALLBACKS_JSON"
+else
+  FALLBACKS_JSON="[]"
+fi
+
 jq -n \
   --arg provider "$PROVIDER" \
   --arg main_model "$MAIN_MODEL" \
@@ -220,8 +230,9 @@ jq -n \
   --arg api_key_var "$API_KEY_VAR" \
   --arg tg_owner_id "$TG_OWNER_ID" \
   --arg vault_path "$VAULT_PATH" \
+  --argjson fallbacks "$FALLBACKS_JSON" \
   '{
-    agents: { defaults: { model: { primary: $main_model, fallbacks: [] } } },
+    agents: { defaults: { model: { primary: $main_model, fallbacks: $fallbacks } } },
     models: { providers: { ($provider): { apiKey: { source: "env", provider: "default", id: $api_key_var } } } },
     plugins: { entries: {
       "active-memory": { config: { model: $active_model } },

@@ -1,0 +1,27 @@
+{
+  "_comment": "Cost + reliability tuning. cacheRetention=long maximizes prompt-cache TTL (1h on Anthropic direct, prefix routing on OpenAI, cached-contents on Gemini). contextPruning trims tool results after cache TTL expires — provider-neutral installs (MiniMax/Groq/xAI) get no pruning by default, so cookclaw turns it on. loopDetection.enabled=true is recommended for smaller models (Groq/Cerebras/MiniMax); flagship models like Anthropic/OpenAI can leave it on too — it's cheap insurance.",
+  "agents": {
+    "defaults": {
+      "params": {
+        "cacheRetention": "long"
+      },
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "5m"
+      }
+    }
+  },
+  "tools": {
+    "loopDetection": {
+      "enabled": true,
+      "historySize": 30,
+      "warningThreshold": 10,
+      "criticalThreshold": 20,
+      "detectors": {
+        "genericRepeat": true,
+        "knownPollNoProgress": true,
+        "pingPong": true
+      }
+    }
+  }
+}

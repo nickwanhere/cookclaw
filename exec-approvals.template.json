@@ -1,5 +1,14 @@
 {
   "_comment": "Default exec allowlist for cookclaw agents. Deployed to ~/.openclaw/exec-approvals.json by bootstrap.sh ONLY if not already present (never overwrites owner edits). To add a command, append to allowlist; to restrict args on an allowed command, add argPattern as a regex. See https://docs.openclaw.ai/tools/exec-approvals for full schema. version=1 is required.",
+  "_tiers": {
+    "read-only": "Filesystem inspection, no mutation. cat ls grep rg find head tail wc sort uniq tr cut diff jq lsof ps date echo node",
+    "write-local": "Creates files/dirs in workspace; no network, no privilege. mkdir touch tee. sed/awk restricted to non-in-place via argPattern.",
+    "network-out": "curl restricted to localhost (MC), Telegram API, OpenClaw control plane, Tailscale internal. gh restricted to read-only subcommands. Arbitrary hosts/mutating subcommands fall through to ask.",
+    "vcs": "git split into two argPatterns: read-only inspection and local-mutating (add/commit/stash/checkout-non-revert). push, reset --hard, clean -fd, branch -D, checkout -- fall through to ask.",
+    "package-install": "brew/npm/pnpm read-only subcommands auto. install/uninstall/update fall through to ask.",
+    "framework": "openclaw/taskflow/obsidian-cli/peekaboo/clawhub/mcporter. openclaw mutating subcommands (configure/update/doctor without --check) fall through to ask because they resolve SecretRefs to plaintext in ~/.openclaw/openclaw.json (issue #9627).",
+    "mutating-shared-REMOVED": "rsync removed from auto-allowlist entirely. Any rsync invocation falls through to ask so the owner sees source+dest before bulk copy."
+  },
   "version": 1,
   "defaults": {
     "security": "allowlist",
@@ -26,29 +35,35 @@
         {"pattern": "uniq"},
         {"pattern": "tr"},
         {"pattern": "cut"},
-        {"pattern": "echo"},
-        {"pattern": "date"},
-        {"pattern": "mkdir"},
-        {"pattern": "touch"},
-        {"pattern": "sed"},
-        {"pattern": "awk"},
-        {"pattern": "tee"},
         {"pattern": "diff"},
         {"pattern": "jq"},
-        {"pattern": "curl"},
-        {"pattern": "rsync"},
         {"pattern": "lsof"},
         {"pattern": "ps"},
-        {"pattern": "git"},
-        {"pattern": "brew"},
-        {"pattern": "npm"},
-        {"pattern": "pnpm"},
+        {"pattern": "date"},
+        {"pattern": "echo"},
         {"pattern": "node"},
-        {"pattern": "openclaw"},
-        {"pattern": "taskflow"},
+
+        {"pattern": "mkdir"},
+        {"pattern": "touch"},
+        {"pattern": "tee"},
+        {"pattern": "sed", "argPattern": "^(?!.*(-i\\b|--in-place))"},
+        {"pattern": "awk", "argPattern": "^(?!.*-i\\b)"},
+
+        {"pattern": "curl", "argPattern": "^(?:[^|;&`$]*\\s)?(?:-[a-zA-Z]+\\s+)*(?:https?://)?(localhost|127\\.0\\.0\\.1|::1|api\\.telegram\\.org|.*\\.openclaw\\.ai|.*\\.ts\\.net)(:[0-9]+)?(/|\\s|$)"},
+        {"pattern": "gh", "argPattern": "^(auth status|api|repo view|issue view|issue list|pr view|pr list|pr diff|pr checks|run list|run view|workflow list)\\b"},
+
+        {"pattern": "git", "argPattern": "^(status|log|diff|show|branch|remote|fetch|stash list|stash show|config --get|rev-parse|ls-files|blame|tag --list|describe|cat-file|grep|shortlog)\\b"},
+        {"pattern": "git", "argPattern": "^(add|commit|stash push|stash pop|checkout(?!.*--)|switch|restore --staged|tag(?!.*-d))\\b"},
+
+        {"pattern": "brew", "argPattern": "^(list|ls|info|outdated|deps|home|--version|search)\\b"},
+        {"pattern": "npm", "argPattern": "^(list|ls|view|outdated|whoami|run\\b)"},
+        {"pattern": "pnpm", "argPattern": "^(list|ls|view|outdated|whoami|run\\b|exec\\b)"},
+
+        {"pattern": "openclaw", "argPattern": "^(tasks|status|memory promote|skills list|config get|models status|cron list|doctor --check|--version|--help)\\b"},
+        {"pattern": "taskflow", "argPattern": "^(list|show|add|validate|done|block)\\b"},
         {"pattern": "obsidian-cli"},
         {"pattern": "mcporter"},
-        {"pattern": "clawhub"},
+        {"pattern": "clawhub", "argPattern": "^(search|list|show|info)\\b"},
         {"pattern": "peekaboo"}
       ]
     }

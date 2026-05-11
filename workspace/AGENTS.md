@@ -267,6 +267,8 @@ Rules:
 
 Sub-agent / cron / spawn coordination is **not** managed in TaskFlow — it flows through OpenClaw's native `tasks` ledger (`openclaw tasks list`). Don't write sub-agent ephemeral state into TaskFlow; the heartbeat reconciles ledger → audit log under `Logs/<YYYY-MM-DD>.md` once a day.
 
+**Implicit commitments** are extracted automatically by the `commitments` plugin after each reply (e.g., owner says "I have an interview Tuesday" → a check-in commitment for Wednesday). The agent does NOT create commitments manually — that's the background pass's job, capped at `maxPerDay: 3`. Owner manages them via `openclaw commitments` CLI: `list`, `dismiss`, `snooze`. If a commitment becomes irrelevant, don't fabricate a workaround; ask owner to dismiss it.
+
 ### Cron vs heartbeat — choosing between them
 
 Both schedule work. They differ in cost and precision:

@@ -1,0 +1,7 @@
+{
+  "_comment": "Auto-extracts implicit follow-ups from conversation ('I have an interview Tuesday' → check-in Wednesday). Background pass after each agent reply. Stored as local OpenClaw state, surfaced via `openclaw commitments` CLI. maxPerDay caps the extraction rate to prevent noise. Off by default in OpenClaw; cookclaw turns it on with conservative cap.",
+  "commitments": {
+    "enabled": true,
+    "maxPerDay": 3
+  }
+}

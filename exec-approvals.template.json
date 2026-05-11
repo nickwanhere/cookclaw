@@ -1,0 +1,55 @@
+{
+  "_comment": "Default exec allowlist for cookclaw agents. Deployed to ~/.openclaw/exec-approvals.json by bootstrap.sh ONLY if not already present (never overwrites owner edits). To add a command, append to allowlist; to restrict args on an allowed command, add argPattern as a regex. See https://docs.openclaw.ai/tools/exec-approvals for full schema. version=1 is required.",
+  "version": 1,
+  "defaults": {
+    "security": "allowlist",
+    "ask": "on-miss",
+    "askFallback": "deny",
+    "autoAllowSkills": true
+  },
+  "agents": {
+    "main": {
+      "security": "allowlist",
+      "ask": "on-miss",
+      "askFallback": "deny",
+      "autoAllowSkills": true,
+      "allowlist": [
+        {"pattern": "cat"},
+        {"pattern": "ls"},
+        {"pattern": "grep"},
+        {"pattern": "rg"},
+        {"pattern": "find"},
+        {"pattern": "head"},
+        {"pattern": "tail"},
+        {"pattern": "wc"},
+        {"pattern": "sort"},
+        {"pattern": "uniq"},
+        {"pattern": "tr"},
+        {"pattern": "cut"},
+        {"pattern": "echo"},
+        {"pattern": "date"},
+        {"pattern": "mkdir"},
+        {"pattern": "touch"},
+        {"pattern": "sed"},
+        {"pattern": "awk"},
+        {"pattern": "tee"},
+        {"pattern": "diff"},
+        {"pattern": "jq"},
+        {"pattern": "curl"},
+        {"pattern": "rsync"},
+        {"pattern": "lsof"},
+        {"pattern": "ps"},
+        {"pattern": "git"},
+        {"pattern": "brew"},
+        {"pattern": "npm"},
+        {"pattern": "pnpm"},
+        {"pattern": "node"},
+        {"pattern": "openclaw"},
+        {"pattern": "taskflow"},
+        {"pattern": "obsidian-cli"},
+        {"pattern": "mcporter"},
+        {"pattern": "clawhub"}
+      ]
+    }
+  }
+}

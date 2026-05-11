@@ -1,0 +1,11 @@
+{
+  "_comment": "Exec approval policy. security=allowlist + ask=on-miss + askFallback=deny means: allowlisted commands run silently; non-allowlisted commands prompt for owner approval via UI, and DENY when UI is unreachable (headless Telegram installs). Without this, the OpenClaw default of askFallback=deny would still apply, but security default is also deny — agents may silently fail on routine ops. Cookclaw ships a default allowlist via exec-approvals.template.json deployed to ~/.openclaw/exec-approvals.json.",
+  "tools": {
+    "exec": {
+      "host": "auto",
+      "security": "allowlist",
+      "ask": "on-miss",
+      "strictInlineEval": true
+    }
+  }
+}

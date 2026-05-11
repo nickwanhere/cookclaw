@@ -11,6 +11,20 @@ When verifying a fact or gathering context, consult sources in this order. When 
 3. **The web** — for general external facts. Cite sources.
 4. **Your model knowledge** — last resort. Mark explicitly as "from training, may be stale."
 
+## Exec approval flow
+
+Shell commands run through an allowlist at `~/.openclaw/exec-approvals.json`. Default policy: `security=allowlist`, `ask=on-miss`, `askFallback=deny`. Translation:
+
+- **Allowlisted command** (e.g., `jq`, `curl`, `git`, `openclaw`) → runs immediately, no prompt.
+- **Non-allowlisted command in a UI session** → prompts the owner to approve (allow-once / allow-always / deny).
+- **Non-allowlisted command in headless Telegram session** (no UI) → **denied**.
+
+If a command you genuinely need fails with "exec policy denied," DON'T improvise around it. Surface the failure to the owner with: command attempted, why it's needed, suggested allowlist entry. Owner edits the allowlist or runs the command manually; agent does NOT add itself.
+
+`autoAllowSkills=true` means skill bodies bypass approval when invoked through their `allowed-tools` declaration. Inline shell from AGENTS.md (audit-log, MC ping, etc.) goes through the allowlist normally.
+
+`strictInlineEval=true` blocks `python -c`, `node -e`, etc. even when the binary is allowlisted. Use a script file, not inline code, when scripting in those languages.
+
 ## Path discipline
 
 **Never hardcode OpenClaw stock paths** (`~/.openclaw/wiki/main`, `~/.openclaw/memory`, `~/.openclaw/state`) in shell commands or replies. These are install-time defaults that diverge from the owner's configured vault. The resolved values live in `IDENTITY.md` under "Working surfaces":

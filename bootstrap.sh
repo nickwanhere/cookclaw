@@ -139,12 +139,24 @@ echo
 echo "[5/9] merge configs"
 "$SCRIPT_DIR/merge-configs.sh"
 
-# 6. deploy workspace bootstrap + skills + topics
+# 6. deploy workspace bootstrap + skills + topics + exec policy
 echo
 echo "[6/9] deploy workspace"
 mkdir -p "$HOME/.openclaw/workspace"
 rsync -av --exclude='*.template' --exclude='_TEMPLATE.md' \
   "$SCRIPT_DIR/workspace/" "$HOME/.openclaw/workspace/" >/dev/null
+
+# Deploy exec allowlist ONLY if owner hasn't already configured one.
+# Once deployed, owner edits are preserved (never overwritten).
+EXEC_APPROVALS="$HOME/.openclaw/exec-approvals.json"
+EXEC_TEMPLATE="$SCRIPT_DIR/exec-approvals.template.json"
+if [[ ! -f "$EXEC_APPROVALS" && -f "$EXEC_TEMPLATE" ]]; then
+  cp "$EXEC_TEMPLATE" "$EXEC_APPROVALS"
+  chmod 600 "$EXEC_APPROVALS"  # contains potential token; restrict
+  echo "  deployed default exec allowlist → $EXEC_APPROVALS"
+elif [[ -f "$EXEC_APPROVALS" ]]; then
+  echo "  exec allowlist exists at $EXEC_APPROVALS (preserving owner edits)"
+fi
 
 # 7. install bundled skill binaries (mcporter, clawhub, obsidian-cli, etc.)
 # Skip with: SKIP_SKILLS=1 ./bootstrap.sh

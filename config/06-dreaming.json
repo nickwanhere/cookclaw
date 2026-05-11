@@ -1,0 +1,16 @@
+{
+  "_comment": "Enables OpenClaw's memory-core dreaming feature (3-phase Light/Deep/REM consolidation). Promotes short-term signals to long-term MEMORY.md overnight. Opt-in, runs at 3 AM local time. Disable by setting dreaming.enabled = false. Per-install owners can change the cron via openclaw.json directly.",
+  "plugins": {
+    "entries": {
+      "memory-core": {
+        "enabled": true,
+        "config": {
+          "dreaming": {
+            "enabled": true,
+            "frequency": "0 3 * * *"
+          }
+        }
+      }
+    }
+  }
+}

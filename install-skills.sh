@@ -90,6 +90,39 @@ npm_install mcporter
 npm_install @anthropic-ai/claude-code  # coding-agent
 
 echo
+echo "=== community skills ==="
+
+# Self-improvement skill (peterskoett/self-improving-agent).
+# Appends learnings/errors/feature-requests to workspace/.learnings/ — the
+# active-capture half of self-improvement. Dreaming (memory-core plugin)
+# reads these on each cycle and promotes patterns to MEMORY.md.
+install_self_improvement_skill() {
+  local target="$HOME/.openclaw/workspace/skills/self-improvement"
+
+  # Try ClawHub first (faster, version-pinned by registry)
+  if command -v clawhub >/dev/null 2>&1; then
+    if clawhub install self-improving-agent 2>&1 | tail -3 | grep -qiE "installed|already"; then
+      echo "  self-improvement: installed via clawhub"
+      return 0
+    fi
+  fi
+
+  # Fallback: git clone the upstream repo
+  if [[ -d "$target/.git" ]]; then
+    echo "  self-improvement: already cloned, pulling latest"
+    ( cd "$target" && git pull --quiet 2>&1 | tail -2 ) || echo "    (pull failed; continuing)"
+  elif [[ -d "$target" ]]; then
+    echo "  self-improvement: dir exists without .git; leaving as-is"
+  else
+    echo "  self-improvement: git clone github.com/peterskoett/self-improving-agent"
+    git clone --depth=1 --quiet \
+      https://github.com/peterskoett/self-improving-agent.git "$target" 2>&1 | tail -2 \
+      || echo "    (clone failed; install manually if needed)"
+  fi
+}
+install_self_improvement_skill
+
+echo
 echo "=== verify ==="
 echo "Run: openclaw doctor"
 echo "Skills should appear under 'Eligible' instead of 'Missing requirements'."

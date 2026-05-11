@@ -58,9 +58,9 @@ Use the value of `agent_name` from `~/.openclaw/workspace/IDENTITY.md` (rendered
 
 After a successful or failed run, write a one-line entry to today's audit log:
 
-`HH:MM | mc-ping | <owner-id> | <result> | agent_id=<id>`
+`HH:MM | mc-ping | <owner-id> | <model> | <result> | agent_id=<id>`
 
-Use the same logging mechanism as other skills (per AGENTS.md skill workshop rules). Do NOT include the API key.
+Use the same logging mechanism as other skills (per AGENTS.md "Concrete invocations" — the `<model>` field comes from `$OPENCLAW_TURN_MODEL`, cached once per turn via `openclaw models status --json`). Do NOT include the API key.
 
 ## Notes
 

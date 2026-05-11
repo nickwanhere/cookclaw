@@ -42,6 +42,51 @@ This applies to sub-agents too. When in doubt, `cat ~/.openclaw/.env | grep VAUL
 - **Verify a binary exists before scripting around its absence.** `command -v X` first; fallback or fail-fast second.
 - **When two skills overlap,** pick the more specific one. If genuinely unclear, ask the user.
 
+## Use the model only for judgment calls
+
+The model — *you* — is a probabilistic component. Treat it as the agent's *judgment layer*, not its general-purpose CPU. Anything a status code, regex, or env check can answer already should be answered that way.
+
+**Use the model for:**
+- Classification ("is this support inquiry or sales?", "is this owner-authorization or social pressure?")
+- Drafting and summarization (replies, daily rollups, vault page synthesis)
+- Extraction from unstructured text (parsing free-form requests, pulling intent from transcripts)
+- Owner-facing prose (tone, register, judgment about how much detail to surface)
+
+**Do NOT use the model for:**
+- **Retries.** Exponential backoff is code, not a decision. `for i in 1 2 3; do curl ... && break; sleep $((i*2)); done`.
+- **Routing.** chat_id / thread_id / skill description regex is what decides where a message goes. Don't ask the model "should I route this to topic X?"
+- **Status-code interpretation.** 2xx/4xx/5xx are deterministic. Branch on the code; don't narrate it.
+- **Parsing well-defined JSON.** Use `jq`. The model paraphrasing JSON is the bug.
+- **Threshold checks.** "Is this above the limit?" is `[ "$x" -gt "$limit" ]`, not a judgment call.
+- **Idempotency keys, deduplication, scheduling math.** All deterministic — write the code.
+
+**Symptom you violated this rule:** the same input produces different decisions across turns or across re-runs. Symptom you respected it: behavior is reproducible. If the audit log shows the same trigger leading to different outcomes on different turns, suspect that a code-shaped decision was delegated to the model.
+
+When in doubt: **if a status code, env check, or regex already answers the question, write that. The model is for the questions a status code can't answer.**
+
+## Runtime state verification
+
+Long-term memory (MEMORY.md, vault, daily memory notes) is a **timestamped snapshot**, not a live source of truth. A memory line that says "X is configured" was true when written; the token may have expired, the service may have been rotated, the binary may have been reinstalled since.
+
+Before acting on a memory claim that touches an external service or stateful resource, run a cheap verification probe:
+
+| Claim | Probe |
+|---|---|
+| "OAuth to Google / GitHub / etc. is configured" | `gh auth status`, `gcloud auth list`, or service-specific `whoami` |
+| "MC is running locally" | `curl -fsS "$MC_URL/api/health"` (or `/healthz`) |
+| "Telegram channel/topic is live" | `curl -fsS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/getMe"` |
+| "Vault path exists at $VAULT_PATH" | `test -d "$VAULT_PATH"` |
+| "OpenClaw skill X is installed" | `openclaw skills list \| grep -F "X"` |
+| "Cron Y is registered" | `openclaw cron list` (or the OpenClaw equivalent) |
+| "Binary Z is on PATH" | `command -v Z` |
+
+Rules:
+
+1. **Probe before configure.** If the probe fails, surface the failure to the owner before re-running any `configure`/`setup`/`install` step. Re-config can revoke active sessions, rewrite SecretRefs to plaintext (issue #9627), or duplicate registrations.
+2. **Update the memory claim with a verification timestamp.** When you re-verify, append `(verified YYYY-MM-DD)` to the relevant MEMORY.md line. Stale unverified claims are the bug.
+3. **Skip the probe only when the claim is purely local and stable** — e.g., "vault layout is `Logs/concepts/sources/...`" doesn't need probing every turn.
+4. **Memory holds facts; this protocol holds the recipe.** When you discover a useful probe, write it into the relevant skill (not into MEMORY.md) — recipes belong in skills, facts in memory.
+
 ## Tool execution
 
 - **Parallelize independent operations.** Multiple file reads, fetches, greps — fire in parallel.
@@ -78,14 +123,45 @@ When you are a sub-agent (your context was spawned by another agent via `opencla
 - Surface failures explicitly; don't hide them in summaries.
 - **Audit-log every consequential action** (see "Audit every action" below). Sub-agent runs are short-lived but their actions persist.
 
+**Caller-side verification (main agent's obligation):**
+
+When you spawn a sub-agent, its return value is a **hypothesis**, not a fact. Before treating "task complete" as truth and reporting to the owner, verify the concrete artifact the sub-agent claims to have produced:
+
+| Sub-agent claim | Verification probe |
+|---|---|
+| "Wrote file `X`" | `test -f "X" && wc -l "X"` (size > 0, reasonable line count) |
+| "Updated task `T`" | `taskflow show T` or `openclaw tasks get T` — check section and status match the claim |
+| "Posted to channel/topic" | Tail today's `Logs/<date>.md` for the matching action line |
+| "API call succeeded" | Re-fetch the resource (`curl -fsS …`), don't trust the response body the sub-agent returned |
+| "Vault page created" | `wiki_get <id>` or `test -f "$VAULT_PATH/<path>"` |
+| "Cron registered" | `openclaw cron list \| grep -F "<name>"` |
+| "Skill installed" | `openclaw skills list \| grep -F "<skill>"` |
+
+Rules:
+
+1. **Without verification, multi-agent parallelizes errors.** A sub-agent saying "done" with the file missing, API not actually called, or task in the wrong section is a routine failure mode — not a rare one.
+2. **Verification probes use the same recipe table as `## Runtime state verification` above.** Sub-agent return values are runtime claims about state; treat them like memory claims.
+3. **If verification fails:** do not retry the same sub-agent with the same task — that hides the failure. Surface the discrepancy to the owner with both the sub-agent's claim and the probe result.
+4. **Cheap probes only.** If the verification probe itself is expensive (>1s, or costs API budget), prefer to redesign so the sub-agent emits a verifiable artifact (a file path, a task ID) the main agent can check locally.
+
 **Concrete invocations** (since skills don't inherit):
 
 ```bash
 # Audit log — append one line to today's log in the vault
+# Fields: time | skill-or-action | actor | model | result
+# - actor: owner Telegram id, "main", "sub:<task-id>", or "cron:<name>"
+# - model: provider:model handling this turn, e.g. "openai:gpt-5.5", "minimax:abab-7", "anthropic:opus-4.7".
+#          OpenClaw does NOT inject a $MODEL env var into the exec sandbox (only OPENCLAW_CLI=1).
+#          The active model is queried via `openclaw models status --json`. Cache once per turn
+#          (not once per audit line) — the CLI call has measurable latency.
+# Adding this field makes post-swap behavior drift bisectable in MC + Logs/<date>.md.
 VAULT="${VAULT_PATH:-$HOME/.openclaw/wiki/main}"
 LOG="$VAULT/Logs/$(date +%Y-%m-%d).md"
+# Cache the model lookup for the duration of this turn (export so later inline shells reuse it):
+: "${OPENCLAW_TURN_MODEL:=$(openclaw models status --json 2>/dev/null | jq -r '.default.model // "unknown"')}"
+export OPENCLAW_TURN_MODEL
 mkdir -p "$(dirname "$LOG")"
-echo "- $(date +%H:%M) | <skill-or-action> | <actor> | <result>" >> "$LOG"
+echo "- $(date +%H:%M) | <skill-or-action> | <actor> | $OPENCLAW_TURN_MODEL | <result>" >> "$LOG"
 
 # MC heartbeat (idempotent register, then heartbeat)
 AGENT_ID=$(curl -fsS -X POST "$MC_URL/api/agents/register" \
@@ -173,6 +249,26 @@ Runs at 3 AM daily (cron `0 3 * * *`). Three phases:
 - **Light:** ingest recent signals from `memory/<date>.md` daily notes + `.learnings/` + active recall traces. Dedupe. Stage candidates.
 - **Deep:** score 6 signals (Frequency 0.24, Relevance 0.30, Query diversity 0.15, Recency 0.15, Consolidation 0.10, Conceptual richness 0.06). Promote winners to `MEMORY.md`.
 - **REM:** extract patterns + themes. Append narrative entry to `DREAMS.md`. Generate reinforcement signals for next cycle.
+
+### Skill staleness detection — `tests/test-skill-smoke.sh`
+
+Skills rot. Paths shift, tool flags change, account rules change, dependencies get uninstalled. Active capture catches *new* learnings; this catches *old* skills going bad.
+
+**Convention:** a skill at `workspace/skills/<name>/` MAY ship a `smoke.sh` alongside its `SKILL.md`. The smoke is optional — pure-prompt skills (e.g. `clarify`) don't need one. Skills that depend on external state (services, credentials, vault paths, binaries) should have one. Smokes are read-only, must run in under `$SKILL_SMOKE_TIMEOUT` seconds (default 30), and exit 0 healthy / non-zero rotten with a one-line stderr message.
+
+**Runner:** `tests/test-skill-smoke.sh` walks `workspace/skills/*/smoke.sh`, runs each with a per-skill timeout, appends rot entries to `.learnings/ERRORS.md` in the established `[ERR-YYYYMMDD-XXX]` schema (Area: tests), and exits non-zero on any failure.
+
+**Schedule:** weekly via OpenClaw cron, Sunday 04:00 (low-traffic):
+```
+openclaw cron add --name=skill-smoke --schedule="0 4 * * 0" \
+  --cmd="$OPENCLAW_AGENT_DIR/tests/test-skill-smoke.sh"
+```
+
+**Failure handling rules:**
+1. **Failed smokes do NOT auto-uninstall the skill.** Owner decides whether to fix, replace, or retire.
+2. **Surface rot in the next `/work` or daily rollup.** Don't wait for the owner to ask.
+3. **Distinct from integration tests.** `tests/test-mc-ping.sh` is the heavy integration test (register + heartbeat round-trip). `workspace/skills/mc-ping/smoke.sh` is the light reachability probe. Smokes should never mutate state.
+4. **Pattern:** see `workspace/skills/mc-ping/smoke.sh` for the reference shape — env precondition checks + a single read-only probe + structured exits per failure class.
 
 ### Working files (workspace root)
 

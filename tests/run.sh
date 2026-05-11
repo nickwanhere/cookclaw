@@ -44,12 +44,16 @@ test_config_json_valid() {
 assert_with_output "all config/*.json parse as valid JSON" test_config_json_valid
 
 test_scripts_syntax() {
-  for f in "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/tests/run.sh; do bash -n "$f" || { echo "syntax: $f"; return 1; }; done
+  for f in "$SCRIPT_DIR"/*.sh "$SCRIPT_DIR"/tests/*.sh "$SCRIPT_DIR"/workspace/skills/*/smoke.sh; do
+    [[ -e "$f" ]] || continue   # glob may not expand if no matches
+    bash -n "$f" || { echo "syntax: $f"; return 1; }
+  done
 }
-assert_with_output "all .sh files pass bash -n" test_scripts_syntax
+assert_with_output "all .sh files (template + tests + skill smokes) pass bash -n" test_scripts_syntax
 
 test_required_files_exist() {
   for f in setup-openclaw.sh onboard-agent.sh merge-configs.sh sync-topics.sh uninstall-openclaw.sh bootstrap.sh install-skills.sh \
+           tests/test-skill-smoke.sh \
            workspace/SOUL.md workspace/AGENTS.md workspace/HEARTBEAT.md \
            workspace/IDENTITY.md.template workspace/USER.md.template \
            workspace/topics/_TEMPLATE.md \
@@ -60,17 +64,66 @@ test_required_files_exist() {
 }
 assert_with_output "all required template files exist" test_required_files_exist
 
+test_skill_smokes_executable() {
+  local count=0 problem=""
+  for s in "$SCRIPT_DIR"/workspace/skills/*/smoke.sh; do
+    [[ -e "$s" ]] || continue
+    count=$((count+1))
+    if [[ ! -x "$s" ]]; then
+      problem="${problem}${s} not executable; "
+    fi
+  done
+  if [[ -n "$problem" ]]; then echo "$problem"; return 1; fi
+  [[ $count -gt 0 ]] || echo "(no smoke.sh files yet — convention is optional)"
+  return 0
+}
+assert_with_output "all skill smoke.sh files are executable" test_skill_smokes_executable
+
 test_soul_no_gendered_terms() {
   ! grep -qiE '\b(he|his|him|nick)\b' "$SCRIPT_DIR/workspace/SOUL.md"
 }
 assert "SOUL.md has no Nick-specific or gendered terms" test_soul_no_gendered_terms
 
 test_bootstrap_under_cap() {
+  # Real bootstrap bundle per workspace/AGENTS.md § "Sub-agent contract":
+  # agents receive SOUL + AGENTS + IDENTITY + USER + TOOLS at boot. HEARTBEAT
+  # loads per-tick, not at boot — measured separately by test_heartbeat_under_cap.
+  # TOOLS.md isn't authored in the template (provided by OpenClaw at runtime from
+  # registered tools/skills); measured as 0 here. If you later author one, add it
+  # to the cat list.
   local cap; cap=$(jq -r '.agents.defaults.bootstrapMaxChars // 12000' "$SCRIPT_DIR/config/00-base.json")
-  local actual; actual=$(cat "$SCRIPT_DIR/workspace/SOUL.md" "$SCRIPT_DIR/workspace/AGENTS.md" "$SCRIPT_DIR/workspace/HEARTBEAT.md" 2>/dev/null | wc -c | tr -d ' ')
+  local actual; actual=$(cat \
+    "$SCRIPT_DIR/workspace/SOUL.md" \
+    "$SCRIPT_DIR/workspace/AGENTS.md" \
+    "$SCRIPT_DIR/workspace/IDENTITY.md.template" \
+    "$SCRIPT_DIR/workspace/USER.md.template" \
+    2>/dev/null | wc -c | tr -d ' ')
   if [[ $actual -le $cap ]]; then return 0; else echo "$actual > $cap"; return 1; fi
 }
-assert_with_output "bootstrap (SOUL+AGENTS+HEARTBEAT) under bootstrapMaxChars cap" test_bootstrap_under_cap
+assert_with_output "bootstrap (SOUL+AGENTS+IDENTITY+USER) under bootstrapMaxChars cap" test_bootstrap_under_cap
+
+test_heartbeat_under_cap() {
+  # HEARTBEAT.md loads on every ~10min tick = ~144x/day. Cap it at 3000 chars
+  # to keep daily token burn modest. If you need more, split into multiple
+  # heartbeat tasks (alternate hours) rather than bloating one file.
+  local cap=3000
+  local actual; actual=$(wc -c < "$SCRIPT_DIR/workspace/HEARTBEAT.md" 2>/dev/null | tr -d ' ')
+  if [[ $actual -le $cap ]]; then return 0; else echo "$actual > $cap (~144x/day = ~$((actual*144/1000))k chars/day)"; return 1; fi
+}
+assert_with_output "HEARTBEAT.md under per-tick cap (3000 chars)" test_heartbeat_under_cap
+
+test_tools_md_status() {
+  # TOOLS.md is referenced by AGENTS.md sub-agent contract. If OpenClaw auto-
+  # generates it from registered tools/skills, we don't author one here — but
+  # the absence should be deliberate, not accidental. Flag for first-install
+  # verification.
+  if [[ -e "$SCRIPT_DIR/workspace/TOOLS.md" ]]; then
+    return 0
+  fi
+  echo "(deferred: TOOLS.md not in template — confirm OpenClaw auto-generates from registered tools at first install)"
+  return 0   # not a failure — informational
+}
+assert_with_output "TOOLS.md presence check (informational)" test_tools_md_status
 
 # ---- merge-configs.sh behavior ----
 echo
@@ -274,14 +327,21 @@ echo
 echo "=== benchmarks ==="
 
 bench_bootstrap_chars() {
-  local soul agents heartbeat total cap
+  local soul agents identity user heartbeat boot total cap
   soul=$(wc -c < "$SCRIPT_DIR/workspace/SOUL.md" | tr -d ' ')
   agents=$(wc -c < "$SCRIPT_DIR/workspace/AGENTS.md" | tr -d ' ')
+  identity=$(wc -c < "$SCRIPT_DIR/workspace/IDENTITY.md.template" | tr -d ' ')
+  user=$(wc -c < "$SCRIPT_DIR/workspace/USER.md.template" | tr -d ' ')
   heartbeat=$(wc -c < "$SCRIPT_DIR/workspace/HEARTBEAT.md" | tr -d ' ')
-  total=$((soul + agents + heartbeat))
+  boot=$(wc -c < "$SCRIPT_DIR/workspace/BOOT.md" 2>/dev/null | tr -d ' ')
+  total=$((soul + agents + identity + user))
   cap=$(jq -r '.agents.defaults.bootstrapMaxChars // 12000' "$SCRIPT_DIR/config/00-base.json")
-  printf "  bootstrap chars: SOUL=%d  AGENTS=%d  HEARTBEAT=%d  total=%d / cap=%d (%d%% used)\n" \
-    "$soul" "$agents" "$heartbeat" "$total" "$cap" "$((total * 100 / cap))"
+  printf "  bootstrap (loads once per session, system prompt):\n"
+  printf "    SOUL=%d  AGENTS=%d  IDENTITY=%d  USER=%d  total=%d / cap=%d (%d%% used)\n" \
+    "$soul" "$agents" "$identity" "$user" "$total" "$cap" "$((total * 100 / cap))"
+  printf "  per-tick recurring loads:\n"
+  printf "    HEARTBEAT=%d (×~144/day = ~%dk chars/day)\n" "$heartbeat" "$((heartbeat * 144 / 1000))"
+  printf "    BOOT=%d (×~1/restart, infrequent)\n" "${boot:-0}"
 }
 bench_bootstrap_chars
 

@@ -5,3 +5,4 @@ openclaw.json.bak.*
 config/*.local.json
 workspace/IDENTITY.md
 workspace/USER.md
+.claude/

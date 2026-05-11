@@ -6,7 +6,7 @@
   "agents": {
     "defaults": {
       "workspace": "~/.openclaw/workspace",
-      "bootstrapMaxChars": 30000,
+      "bootstrapMaxChars": 50000,
       "heartbeat": {
         "every": "10m"
       }

@@ -48,7 +48,8 @@
         {"pattern": "taskflow"},
         {"pattern": "obsidian-cli"},
         {"pattern": "mcporter"},
-        {"pattern": "clawhub"}
+        {"pattern": "clawhub"},
+        {"pattern": "peekaboo"}
       ]
     }
   }

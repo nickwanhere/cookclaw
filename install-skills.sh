@@ -81,6 +81,11 @@ brew_install summarize
 brew_install wacli
 brew_install xurl
 
+# Peekaboo (steipete/peekaboo) — macOS screen capture + GUI automation,
+# exposed to OpenClaw via MCP. Requires Screen Recording + Accessibility
+# permissions granted to the binary — owner-approved once on first launch.
+brew_install peekaboo
+
 # Brew cask
 brew_cask_install codexbar  # model-usage
 
@@ -121,6 +126,15 @@ install_self_improvement_skill() {
   fi
 }
 install_self_improvement_skill
+
+echo
+echo "=== macOS permissions reminder ==="
+if command -v peekaboo >/dev/null 2>&1; then
+  echo "Peekaboo is installed but needs OS permissions BEFORE the agent can use it:"
+  echo "  1. System Settings → Privacy & Security → Screen & System Audio Recording → allow 'peekaboo' (or Terminal/iTerm if running there)"
+  echo "  2. System Settings → Privacy & Security → Accessibility → allow 'peekaboo'"
+  echo "  Without these, screen capture + GUI automation will silently fail."
+fi
 
 echo
 echo "=== verify ==="

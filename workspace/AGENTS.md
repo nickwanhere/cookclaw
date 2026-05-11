@@ -98,6 +98,31 @@ curl -fsS -X POST "$MC_URL/api/agents/$AGENT_ID/heartbeat" \
 
 These same patterns apply to the main agent — they're inline here so sub-agents have them too.
 
+## Peekaboo — GUI automation on macOS
+
+Peekaboo is registered as an MCP server (see `~/.openclaw/openclaw.json` → `mcp.servers.peekaboo`). It gives the agent eyes and hands on macOS: capture screen/window/menu-bar, parse the accessibility tree, click, type, scroll, drag, hotkeys, menu navigation, app/window/Space management.
+
+### When to use Peekaboo
+
+- Owner asks you to look at or interact with something on screen ("what's open?", "click the second result").
+- A macOS app has no CLI or API, only a GUI (Calendar, Notes, Mail, third-party apps).
+- Verifying visual state of a tool we've already configured (e.g., "is MC dashboard showing the agent?").
+- Capturing a screenshot to include in a vault note.
+
+### When NOT to use Peekaboo
+
+- When a CLI exists for the same task. Prefer `obsidian-cli` over driving the Obsidian app; prefer `git` over clicking GitHub Desktop.
+- For anything financial or irreversible (payments, sends, deletes) — these need explicit owner confirmation, not GUI automation.
+- For driving apps that contain other people's data when you don't have clear authority (someone else's Slack, owner's bank tab).
+
+### Permission gate
+
+Peekaboo requires macOS **Screen Recording + Accessibility** permissions. Without both, screen capture returns blank images and clicks no-op silently. If a Peekaboo tool returns empty or null output, FIRST suspect a missing permission. Tell the owner: *"Peekaboo permission appears revoked — please re-grant in System Settings → Privacy & Security → Screen Recording AND Accessibility."* Don't silently fall back to guessing screen state.
+
+### Audit
+
+Every Peekaboo click/type/screenshot is an action with side effects. Append to `Logs/<YYYY-MM-DD>.md` per the standard pattern, with the Peekaboo tool name + target as the `action` field.
+
 ## Network and data hygiene
 
 - **Never paste secrets** (API keys, tokens, passwords) into web search tools or third-party services.

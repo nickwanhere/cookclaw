@@ -1,0 +1,11 @@
+{
+  "_comment": "Register Peekaboo (steipete/peekaboo) as an MCP server. Peekaboo exposes pixel-accurate screen capture + accessibility-tree-aware GUI automation (click, type, scroll, menus, dialogs, hotkeys) over stdio. Requires brew install steipete/tap/peekaboo + macOS Screen Recording + Accessibility permissions granted to the binary. First invocation will pop OS permission dialogs — owner must approve once. After that, the agent can drive any macOS GUI through Peekaboo tools.",
+  "mcp": {
+    "servers": {
+      "peekaboo": {
+        "command": "peekaboo",
+        "args": ["mcp", "serve"]
+      }
+    }
+  }
+}

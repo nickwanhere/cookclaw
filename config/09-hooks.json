@@ -1,0 +1,13 @@
+{
+  "_comment": "Enable bundled lifecycle hooks. boot-md runs workspace/BOOT.md as an agent turn on every gateway:startup event — used here for deterministic MC registration without writing a TypeScript handler. Other bundled hooks (session-memory, command-logger, compaction-notifier) can be added later as opt-ins. The 'enabled' flag at hooks.internal level is the master switch.",
+  "hooks": {
+    "internal": {
+      "enabled": true,
+      "entries": {
+        "boot-md": {
+          "enabled": true
+        }
+      }
+    }
+  }
+}

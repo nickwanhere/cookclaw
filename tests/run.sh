@@ -252,6 +252,36 @@ EOF
 }
 assert_with_output "onboard uses values already in .env.local as defaults (regression)" test_onboard_uses_env_local_defaults
 
+test_onboard_opencode_go_provider() {
+  # Verifies the opencode-go provider path: inferred from OPENCODE_API_KEY env var,
+  # default model is opencode-go/deepseek-v4-pro, generated config has a baseURL
+  # field under models.providers."opencode-go".
+  local sandbox="$TMPDIR_ROOT/onboard-opencode-go"
+  mkdir -p "$sandbox"
+  cp -r "$SCRIPT_DIR"/* "$sandbox/" 2>/dev/null
+
+  cat > "$sandbox/.env.local" <<'EOF'
+TELEGRAM_BOT_TOKEN=real-bot-token
+TELEGRAM_OWNER_ID=987654321
+OPENCODE_API_KEY=sk-real-opencode-key
+OPENCODE_BASE_URL=https://opencode.ai/zen/v1
+EOF
+
+  ( cd "$sandbox" && ./onboard-agent.sh --non-interactive </dev/null ) >/dev/null 2>&1
+
+  jq -e '.provider == "opencode-go"' "$sandbox/profile.local.json" >/dev/null \
+    || { echo "provider not inferred as opencode-go from OPENCODE_API_KEY"; return 1; }
+  jq -e '.main_model == "opencode-go/deepseek-v4-pro"' "$sandbox/profile.local.json" >/dev/null \
+    || { echo "main_model not defaulted to deepseek-v4-pro"; return 1; }
+  jq -e '.active_model == "opencode-go/deepseek-v4-flash"' "$sandbox/profile.local.json" >/dev/null \
+    || { echo "active_model not defaulted to deepseek-v4-flash"; return 1; }
+  jq -e '.models.providers."opencode-go".apiKey.id == "OPENCODE_API_KEY"' "$sandbox/config/00-provider.local.json" >/dev/null \
+    || { echo "apiKey SecretRef not generated for opencode-go"; return 1; }
+  jq -e '.models.providers."opencode-go".baseURL == "https://opencode.ai/zen/v1"' "$sandbox/config/00-provider.local.json" >/dev/null \
+    || { echo "baseURL not generated for opencode-go (custom endpoint override missing)"; return 1; }
+}
+assert_with_output "onboard generates valid opencode-go provider config with baseURL" test_onboard_opencode_go_provider
+
 test_onboard_non_interactive() {
   local sandbox="$TMPDIR_ROOT/onboard-non-interactive"
   mkdir -p "$sandbox"

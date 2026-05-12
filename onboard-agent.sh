@@ -76,6 +76,7 @@ api_key_var_to_provider() {
     CEREBRAS_*) echo "cerebras";;
     GROQ_*) echo "groq";;
     XAI_*) echo "xai";;
+    OPENCODE_*) echo "opencode-go";;
     *) echo "";;
   esac
 }
@@ -90,6 +91,7 @@ default_main_model_for() {
     cerebras) echo "cerebras/gpt-oss-120b";;
     groq) echo "groq/llama-4-70b";;
     xai) echo "xai/grok-4";;
+    opencode-go) echo "opencode-go/deepseek-v4-pro";;
     *) echo "$1/REPLACE_WITH_MODEL_ID";;
   esac
 }
@@ -104,6 +106,10 @@ default_active_model_for() {
     cerebras) echo "cerebras/gpt-oss-120b";;
     groq) echo "groq/llama-4-8b";;
     xai) echo "xai/grok-4-mini";;
+    # OpenCode Go bundle is flat-priced ($10/mo with usage caps) — active-memory
+    # cost is non-issue; pick a faster bundle member. v4-flash slug is best-guess
+    # (per https://opencode.ai/docs/go/), confirm with `opencode models` post-install.
+    opencode-go) echo "opencode-go/deepseek-v4-flash";;
     *) echo "$1/REPLACE_WITH_MODEL_ID";;
   esac
 }
@@ -169,7 +175,7 @@ if [[ $NON_INTERACTIVE -eq 0 ]]; then
   if [[ -n "$INFERRED_KEY_VAR" ]]; then
     echo "(detected $INFERRED_KEY_VAR in .env.local — using as default)"
   fi
-  echo "Examples: openai, minimax, cerebras, google. Check OpenClaw docs for valid provider keys."
+  echo "Examples: openai, anthropic, minimax, cerebras, google, opencode-go (Anomaly's \$10/mo bundle, set OPENCODE_BASE_URL in .env.local)."
 fi
 PROVIDER="$(prompt_field 'Provider key' "$(load_default provider "${INFERRED_PROVIDER:-openai}")" 1)"
 [[ $NON_INTERACTIVE -eq 0 ]] && echo "Model IDs use 'provider/model' format. Defaults below are verified-current picks per provider."
@@ -223,6 +229,19 @@ else
   FALLBACKS_JSON="[]"
 fi
 
+# Custom OpenAI-compatible endpoint override (currently used by opencode-go).
+# Provider object gets a `baseURL` field when this is set. TODO_VERIFY on first
+# install: OpenClaw's exact field name (baseURL vs baseUrl vs endpoint vs apiBase) —
+# check src/models/ in openclaw repo if the gateway rejects the config at startup.
+PROVIDER_EXTRA_JSON="{}"
+case "$PROVIDER" in
+  opencode-go)
+    OPENCODE_BASE_URL_RESOLVED="${OPENCODE_BASE_URL:-https://opencode.ai/zen/v1}"
+    PROVIDER_EXTRA_JSON=$(jq -n --arg url "$OPENCODE_BASE_URL_RESOLVED" '{baseURL: $url}')
+    echo "opencode-go provider: baseURL=$OPENCODE_BASE_URL_RESOLVED"
+    ;;
+esac
+
 jq -n \
   --arg provider "$PROVIDER" \
   --arg main_model "$MAIN_MODEL" \
@@ -231,9 +250,12 @@ jq -n \
   --arg tg_owner_id "$TG_OWNER_ID" \
   --arg vault_path "$VAULT_PATH" \
   --argjson fallbacks "$FALLBACKS_JSON" \
+  --argjson provider_extra "$PROVIDER_EXTRA_JSON" \
   '{
     agents: { defaults: { model: { primary: $main_model, fallbacks: $fallbacks } } },
-    models: { providers: { ($provider): { apiKey: { source: "env", provider: "default", id: $api_key_var } } } },
+    models: { providers: { ($provider): (
+      { apiKey: { source: "env", provider: "default", id: $api_key_var } } + $provider_extra
+    ) } },
     plugins: { entries: {
       "active-memory": { config: { model: $active_model } },
       "memory-wiki": { config: { vault: { path: $vault_path } } }
